@@ -27,6 +27,7 @@ module chopsticks_fsm (
         //IMPLEMENTING SPLIT MODULE
         START,
         BRANCHPLAYER,
+        //where the split module starts
         BRANCHP1LAVAIL,
         BRANCHP2LAVAIL,
         DIVP1RSCORE,
@@ -82,6 +83,7 @@ module chopsticks_fsm (
                     else{
                         game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL
                     }
+                //Here onwards is where the split module starts
                 ChopSticksStates.BRANCHP1LAVAIL:
                 regfile_ra2 = d4 //checks R4 p1l avail
                 if (regfile_rd2[0]){
