@@ -47,6 +47,14 @@ module chopsticks_fsm (
         OFFP1RHAND,
         OFFP2LHAND,
         OFFP2RHAND,
+        OFFP1LAVAIL,
+        OFFP1RAVAIL,
+        OFFP2LAVAIL,
+        OFFP2RAVAIL,
+        ONP1LAVAIL,
+        ONP1RAVAIL,
+        ONP2LAVAIL,
+        ONP2RAVAIL,        
         END
     
     }
@@ -230,6 +238,8 @@ module chopsticks_fsm (
                     regfile_we = 1
                     debug = b1010
                     game_fsm.d = ChopSticksStates.OFFP2LHAND
+                
+                
                 //after lighting up the winner hand, off the loser hand
                 ChopSticksStates.OFFP1LHAND:
                     wdsel = 2
@@ -243,7 +253,7 @@ module chopsticks_fsm (
                     regfile_wa = d1
                     regfile_we = 1
                     debug = b1011
-                game_fsm.d = ChopSticksStates.END                                      
+                game_fsm.d = ChopSticksStates.OFFP1LAVAIL
                 
                 ChopSticksStates.OFFP2LHAND:
                     wdsel = 2
@@ -251,13 +261,86 @@ module chopsticks_fsm (
                     regfile_we = 1
                     debug = b1011
                 game_fsm.d = ChopSticksStates.OFFP2RHAND
+                
                 ChopSticksStates.OFFP2RHAND:                                          
                     wdsel = 2
                     regfile_wa = d3
                     regfile_we = 1
                     debug = b1011
-                game_fsm.d = ChopSticksStates.END                   
-
+                game_fsm.d = ChopSticksStates.OFFP2LAVAIL  
+                
+                ChopSticksStates.OFFP1LAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.OFFP1RAVAIL
+                                   
+                ChopSticksStates.OFFP1RAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.ONP2LAVAIL                    
+                                                              
+                ChopSticksStates.OFFP2LAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.OFFP2RAVAIL
+                                    
+                ChopSticksStates.OFFP2RAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.ONP1LAVAIL                      
+                    
+                ChopSticksStates.ONP1LAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.ONP1RAVAIL                      
+                    
+                ChopSticksStates.ONP1RAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.END
+                                                                               
+                ChopSticksStates.ONP2LAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.ONP2RAVAIL
+                  
+                ChopSticksStates.ONP2RAVAIL:                     
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.END
+                                     
                 ChopSticksStates.END:
                     game_fsm.d = ChopSticksStates.START                                        
                 
