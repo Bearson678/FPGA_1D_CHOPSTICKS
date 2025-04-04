@@ -1,0 +1,422 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input p1split,
+    input p2split,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    //use this to list the states you are testing for your module
+    enum ChopSticksStates{
+        //IMPLEMENTING THE TIMER MODULE
+        START,
+        SELECTHANDTOHIT, //IDLE STATE
+        
+        //once hand is selected and is that player's turn
+        BRANCHPLAYERONEP1L,
+        BRANCHPLAYERONEP1R,
+        BRANCHPLAYERTWOP2L,
+        BRANCHPLAYERTWOP2R,
+        UPDATETEMP1P1LADDR,
+        UPDATETEMP1P1RADDR,
+        UPDATETEMP1P2LADDR,
+        UPDATETEMP1P2RADDR,
+        UPDATETEMP2P1L,
+        UPDATETEMP2P1R,
+        UPDATETEMP2P2L,
+        UPDATETEMP2P2R,
+        UPDATETEMP3P1L,
+        UPDATETEMP3P1R,
+        UPDATETEMP3P2L,
+        UPDATETEMP3P2R,
+        
+        //Decreasing timer
+        CHECKTIMER,
+        BRANCHTIMER,
+        DECREASETIMER
+        
+        
+        
+    
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(ChopSticksStates)](#INIT(ChopSticksStates.START))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = ChopSticksStates.START
+        }
+        else{
+            //this is where you start coding out your states
+              case(game_fsm.q){
+                ChopSticksStates.START:
+                if(p1r_button|p2r_button){ //UPON BUTTON PRESS SET TIMER TO 
+                    alufn = b011010
+                    asel = b10
+                    wdsel = 0
+                    regfile_wa = d8
+                    regfile_we = 1
+                    regfile_ra1 = d8
+                    regfile_ra2 = d8                        
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT
+                    }
+                ChopSticksStates.SELECTHANDTOHIT:
+                if(p1l_button && ~p1r_button && ~p2l_button && ~p2r_button && ~p1split && ~p2split ){//if p1l button
+                     game_fsm.d = ChopSticksStates.BRANCHPLAYERONEP1L                            
+                  }
+                else if(p1r_button&& ~p1l_button && ~p2l_button && ~p2r_button && ~p1split && ~p2split){//if p1r button
+                     game_fsm.d = ChopSticksStates.BRANCHPLAYERONEP1R                            
+                  }
+                
+                else if(p2l_button && ~p1r_button && ~p1l_button && ~p2r_button && ~p1split && ~p2split){//if p2l button
+                       game_fsm.d = ChopSticksStates.BRANCHPLAYERTWOP2L
+                    }
+                else if(p2r_button && ~p1r_button && ~p2l_button && ~p1r_button && ~p1split && ~p2split){//if p2r button
+                       game_fsm.d = ChopSticksStates.BRANCHPLAYERTWOP2R
+                    }
+                else if (decrease_timer){
+                      //NEEDS TO WAIT FOR RISING EDGE OF THE COUNTER TO START DECREASING, PUT THIS IN YOUR IDLE STATES FOR EACH ATTACK OPTION
+                            game_fsm.d = ChopSticksStates.CHECKTIMER
+                    
+                    }
+                else{
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT
+                    }
+                                       
+
+
+                //CHECKS IF IT IS THE CORRECT PLAYER
+                ChopSticksStates.BRANCHPLAYERONEP1L:
+                regfile_ra2 = d13
+                if(~regfile_rd2[0]){
+                     game_fsm.d = ChopSticksStates.UPDATETEMP1P1LADDR   
+                    }
+
+                else{
+                    game_fsm.d = ChopSticksStates.SELECTHANDTOHIT    
+                    }
+                
+                ChopSticksStates.BRANCHPLAYERONEP1R:
+                regfile_ra2 = d13
+                if(~regfile_rd2[0]){
+                     game_fsm.d = ChopSticksStates.UPDATETEMP1P1RADDR   
+                    }
+
+                else{
+                    game_fsm.d = ChopSticksStates.SELECTHANDTOHIT    
+                    }                
+                
+                ChopSticksStates.BRANCHPLAYERTWOP2L:
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){
+                     game_fsm.d = ChopSticksStates.UPDATETEMP1P2LADDR   
+                    }
+
+                else{
+                    game_fsm.d = ChopSticksStates.SELECTHANDTOHIT    
+                    }                
+                ChopSticksStates.BRANCHPLAYERTWOP2R:
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){
+                     game_fsm.d = ChopSticksStates.UPDATETEMP1P2RADDR   
+                    }
+
+                else{
+                    game_fsm.d = ChopSticksStates.SELECTHANDTOHIT    
+                    }
+                                
+                
+                //WHERE THE UPDATING OF TEMP REGS START
+                //IF P1L IS SELECTED
+                ChopSticksStates.UPDATETEMP1P1LADDR:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0000                    
+              game_fsm.d = ChopSticksStates.UPDATETEMP2P1L
+                  
+               ChopSticksStates.UPDATETEMP2P1L:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    regfile_ra1 = d0
+                    debug = b0000 
+               game_fsm.d = ChopSticksStates.UPDATETEMP3P1R
+                
+              ChopSticksStates.UPDATETEMP3P1R:  
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d11
+                    regfile_we = 1
+                    regfile_ra1 = d1
+                    debug = b0000                         
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT
+                
+                
+                
+                //IF P1R IS SELECTED
+               ChopSticksStates.UPDATETEMP1P1RADDR:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0000                    
+              game_fsm.d = ChopSticksStates.UPDATETEMP2P1R
+                  
+               ChopSticksStates.UPDATETEMP2P1R:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    regfile_ra1 = d1
+                    debug = b0000 
+               game_fsm.d = ChopSticksStates.UPDATETEMP3P1L
+                
+              ChopSticksStates.UPDATETEMP3P1L:  
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d11
+                    regfile_we = 1
+                    regfile_ra1 = d0
+                    debug = b0000                         
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT                
+               
+                
+                //IF P2L IS SELECTED
+                 
+               ChopSticksStates.UPDATETEMP1P2LADDR:
+                    alufn = b011100
+                    bsel = b11
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0000                    
+              game_fsm.d = ChopSticksStates.UPDATETEMP2P2L
+                  
+               ChopSticksStates.UPDATETEMP2P2L:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    regfile_ra1 = d2
+                    debug = b0000 
+               game_fsm.d = ChopSticksStates.UPDATETEMP3P2R
+                
+              ChopSticksStates.UPDATETEMP3P2R:  
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d11
+                    regfile_we = 1
+                    regfile_ra1 = d3
+                    debug = b0000                         
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT                
+                
+                
+                //IF P2R IS SELECTED 
+                
+                ChopSticksStates.UPDATETEMP1P2RADDR:
+                    alufn = b011010
+                    asel = b01
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0000                    
+              game_fsm.d = ChopSticksStates.UPDATETEMP2P2R
+                  
+               ChopSticksStates.UPDATETEMP2P2R:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    regfile_ra1 = d3
+                    debug = b0000 
+               game_fsm.d = ChopSticksStates.UPDATETEMP3P2L
+                
+              ChopSticksStates.UPDATETEMP3P2L:  
+                    alufn = b011010
+                    asel = b00
+                    wdsel = 0
+                    regfile_wa = d11
+                    regfile_we = 1
+                    regfile_ra1 = d2
+                    debug = b0000                         
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT
+                
+                
+
+                //TIMER LOGIC
+                ChopSticksStates.CHECKTIMER: //CMPEQ W 0 TO SEE IF TIMER WENT TO 0 OR NAH
+                    alufn = b110011
+                    asel = b00
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d12
+                    regfile_we = 1
+                    regfile_ra1 = d8
+                    //regfile_ra2 = d12
+                    
+                    debug = b0000 
+                game_fsm.d = ChopSticksStates.BRANCHTIMER
+                
+                ChopSticksStates.BRANCHTIMER:// READS UP TEMP4 REG AND BRANCHES TO EITHER TO DECREASETIMER IF = 0 OR TO WTV STATE U WANNA GO TO 
+                regfile_ra2 = d12
+                if(~|regfile_rd2){
+                game_fsm.d = ChopSticksStates.DECREASETIMER
+                    }
+                else{
+                game_fsm.d = ChopSticksStates.START
+                    }
+                
+                ChopSticksStates.DECREASETIMER: //DECREASES THE TIMER VALUE BY ONE
+                    alufn = b000001
+                    asel = b00
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d8
+                    regfile_we = 1
+                    regfile_ra1 = d8
+                    regfile_ra2 = d8
+                game_fsm.d = ChopSticksStates.SELECTHANDTOHIT //NOTE THIS STATE HAS TO GO TO THE IDLE STATE TO AWAIT FOR NEXT DECREASE_TIMER RISING EDGE
+                
+                                              
+                
+            
+        }
+        
+    }
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
