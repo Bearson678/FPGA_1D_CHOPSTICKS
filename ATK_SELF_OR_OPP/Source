@@ -1,0 +1,401 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input p1split,
+    input p2split,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    //use this to list the states you are testing for your module
+    enum ChopSticksStates{
+        //IMPLEMENTING ATTACK SELF / OPPONENT 
+        START,
+        BRANCHPLAYER,
+        
+        //where the split module starts
+        CALC_RESULT,
+        
+        // player 1 left hand
+        CHECK_ATTACKEDHAND_P1L, // CHECK IF P1L WAS ATTACKED
+        BRANCH_P1L, // IDK, TO BRANCH if its P1L or not
+        P1L_5ORLESS, // CHECK IF HAND IS DEAD OR ALIVE, includes update in the else
+        REMOVE_P1LAVAIL, // IF DEAD
+        
+        // player 1 right hand
+        CHECK_ATTACKEDHAND_P1R, // CHECK IF P1R WAS ATTACKED
+        BRANCH_P1R, // IDK, TO BRANCH if its P1R or not
+        P1R_5ORLESS, // CHECK IF HAND IS DEAD OR ALIVE, includes update in the else
+        REMOVE_P1RAVAIL, //  IF DEAD
+        
+        // player 2 left hand
+        CHECK_ATTACKEDHAND_P2L, // CHECK IF P2L WAS ATTACKED
+        BRANCH_P2L, // IDK, TO BRANCH if its P2L or not
+        P2L_5ORLESS, // CHECK IF HAND IS DEAD OR ALIVE, includes update in the else
+        REMOVE_P2LAVAIL, //  IF DEAD
+        
+        // player 2 right hand
+        //CHECK_ATTACKEDHAND_P2R, // CHECK IF P2R WAS ATTACKED, REMOVED TO FOLLOW THE FSM
+        BRANCH_P2R, // IDK, TO BRANCH if its P2R or not
+        P2R_5ORLESS, // CHECK IF HAND IS DEAD OR ALIVE, includes update in the else
+        REMOVE_P2RAVAIL //  IF DEAD
+    }
+    
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(ChopSticksStates)](#INIT(ChopSticksStates.START))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = d9
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = ChopSticksStates.START
+        }
+        else{
+            //this is where you start coding out your states
+            case(game_fsm.q){
+                ChopSticksStates.START:
+                regfile_ra2 = d12
+                    if(~regfile_rd2[0]){ // we start when temp 4 == 0, last red bubble of checking attack portion
+                        game_fsm.d = ChopSticksStates.CALC_RESULT
+                        }
+                
+                
+                ChopSticksStates.CALC_RESULT:
+                    alufn = b000000 // ADD
+                    asel = 00
+                    bsel = 00
+                    wdsel = 00
+                    regfile_we = 01
+                    regfile_wa = d10 // write to temp 2
+                    regfile_ra1 = d10 // what is in temp 2, shld be attacked hand
+                    regfile_ra2 = d11 // whatever is in temp 3, should be attacking hand
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.CHECK_ATTACKEDHAND_P1L
+                
+                
+                // CHECKING IF IS ATTACKED HAND IS PLAYER 1 LEFT 
+                
+                
+                ChopSticksStates.CHECK_ATTACKEDHAND_P1L:
+                    alufn = b110011 // CMPEQ
+                    asel = 00
+                    bsel = 01 // provides a value of 0
+                    wdsel = 00
+                    regfile_we = 01
+                    regfile_wa = d12 // write to temp 4
+                    regfile_ra1 = d09 // whatever is in temp 1, which shld be address of the attacked hand
+                    //regfile_ra2 = d00 , dont need ra2 cuz bsel is not 0 
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCH_P1L
+                
+                
+                ChopSticksStates.BRANCH_P1L:
+                    regfile_ra2 = d12 //checks R12 checks temp 4
+                    if(regfile_rd2[0]){ //  CHECKS IF TEMP 4 == 1, which means address in temp 4 is 0, P1L correct
+                        // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = 02 // provides a value of 5
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d12 // write to temp 4
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = d10 // temp 2, should be result of attacked hand  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.P1L_5ORLESS
+                    }
+                    else{ // if temp4==0, means address in temp4 is not 0, so we check other addresses 
+                        game_fsm.d = ChopSticksStates.CHECK_ATTACKEDHAND_P1R
+                    }
+                
+                ChopSticksStates.P1L_5ORLESS:
+                    regfile_ra2 = d12 //checks temp4 
+                    if(regfile_rd2[0]){ //  if temp4==1, hand is dead
+                        // set P1L score to 0
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = d01 // provides a value of 0 at the bsel
+                        wdsel = d00
+                        regfile_we = 01
+                        regfile_wa = d0 // write to register 0
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.REMOVE_P1LAVAIL
+                    }
+                    else{ // if temp4==0, hand is alive 
+                        // UPDATE P1L score to whatever is in temp 2
+                        alufn = b011010 // "A"
+                        asel = 00 
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d00 // write to address reg 0, which is address of P1L content 
+                        regfile_ra1 = d10 // temp2, should contain the result of the attacked hand
+                        //regfile_ra2 not needed 
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating hand
+                    }
+                
+                
+                ChopSticksStates.REMOVE_P1LAVAIL:
+                    // set P1LAVAIL to 0 
+                    alufn = b011100 // "B"
+                    bsel = b01 // provides a value of 0 
+                    wdsel = 0
+                    regfile_wa = d4 // write to register 4, dictates player 1 left availability to 0 
+                    regfile_we = 1
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating avail
+                
+                
+                // CHECKING IF ATTACKED HAND IS PLAYER 1 LEFT 
+                
+                
+                ChopSticksStates.CHECK_ATTACKEDHAND_P1R:
+                    // checks if the attacked hand has address of 1
+                    alufn = b110011 // CMPEQ
+                    asel = 00
+                    bsel = d02 // provides a value of 1
+                    wdsel = 00
+                    regfile_we = 01
+                    regfile_wa = d12 // write to temp 4
+                    regfile_ra1 = d09 // whatever is in temp 1, which shld be address of the attacked hand
+                    //regfile_ra2 = d00 , dont need ra2 cuz bsel is not 0 
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCH_P1R
+                
+                
+                ChopSticksStates.BRANCH_P1R:
+                    regfile_ra2 = d12 //checks temp4
+                    if(regfile_rd2[0]){ //  CHECKS IF TEMP 4 == 1, which means address in temp 4 is 1, P1R correct
+                        // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = 02 // provides a value of 5
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d12 // write to temp 4
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = d10 // temp 2, should be result of attacked hand  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.P1R_5ORLESS
+                    }
+                    else{ // if temp4==0, means address in temp4 is not 1, so we check other addresses 
+                        game_fsm.d = ChopSticksStates.CHECK_ATTACKEDHAND_P2L
+                    }
+                
+                
+                ChopSticksStates.P1R_5ORLESS:
+                    regfile_ra2 = d12 //checks temp4 
+                    if(regfile_rd2[0]){ //  if temp4==1, hand is dead
+                        // set P1R score to 0
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = d01 // provides a value of 0 at the bsel
+                        wdsel = d00
+                        regfile_we = 01
+                        regfile_wa = d1 // write to register 1, for P1R
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.REMOVE_P1RAVAIL
+                    }
+                    else{ // if temp4==0, hand is alive 
+                        // UPDATE P1R score to whatever is in temp 2
+                        alufn = b011010 // "A"
+                        asel = 00 
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d01 // write to address reg 1, which is address of P1R content 
+                        regfile_ra1 = d10 // temp2, should contain the result of the attacked hand
+                        //regfile_ra2 not needed 
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating hand
+                    }
+                
+                
+                ChopSticksStates.REMOVE_P1RAVAIL:
+                    // set P1RAVAIL to 0 
+                    alufn = b011100 // "B"
+                    bsel = b01 // provides a value of 0 
+                    wdsel = 0
+                    regfile_wa = d5 // write to register 5, dictates player 1 right availability to 0 
+                    regfile_we = 1
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating avail
+                
+                
+                // CHECKING IF ATTACKED HAND IS PLAYER 2 LEFT 
+                
+                
+                ChopSticksStates.CHECK_ATTACKEDHAND_P2L:
+                    // checks if the attacked hand has address of 2
+                    alufn = b110011 // CMPEQ
+                    asel = 00
+                    bsel = d03 // provides a value of 2
+                    wdsel = 00
+                    regfile_we = 01
+                    regfile_wa = d12 // write to temp 4
+                    regfile_ra1 = d09 // whatever is in temp 1, which shld be address of the attacked hand
+                    //regfile_ra2 = d00 , dont need ra2 cuz bsel is not 0 
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCH_P2L
+                
+                
+                ChopSticksStates.BRANCH_P2L:
+                    regfile_ra2 = d12 //checks temp4
+                    if(regfile_rd2[0]){ //  CHECKS IF TEMP 4 == 2, which means address in temp 4 is 2, P2L correct
+                        // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = 02 // provides a value of 5
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d12 // write to temp 4
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = d10 // temp 2, should be result of attacked hand  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.P2L_5ORLESS
+                    }
+                    else{ // if temp4==0, means address in temp4 is not 1, so we check other addresses 
+                        game_fsm.d = ChopSticksStates.BRANCH_P2R 
+                    }
+                
+                ChopSticksStates.P2L_5ORLESS:
+                    regfile_ra2 = d12 //checks temp4 
+                    if(regfile_rd2[0]){ //  if temp4==1, hand is dead
+                        // set P2L score to 0
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = d01 // provides a value of 0 at the bsel
+                        wdsel = d00
+                        regfile_we = 01
+                        regfile_wa = d2 // write to register 2, for P2L
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.REMOVE_P2LAVAIL
+                    }
+                    else{ // if temp4==0, hand is alive 
+                        // UPDATE P2L score to whatever is in temp 2
+                        alufn = b011010 // "A"
+                        asel = 00 
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d02 // write to address reg 2, which is address of P2L content 
+                        regfile_ra1 = d10 // temp2, should contain the result of the attacked hand
+                        //regfile_ra2 not needed 
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating hand
+                    }
+                
+                
+                ChopSticksStates.REMOVE_P2LAVAIL:
+                    // set P2LAVAIL to 0 
+                    alufn = b011100 // "B"
+                    bsel = b01 // provides a value of 0 
+                    wdsel = 0
+                    regfile_wa = d6 // write to register 6, dictates player 2 Left availability to 0 
+                    regfile_we = 1
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating avail
+                
+                
+                
+                // CHECKING IF ATTACKED HAND IS PLAYER 2 RIGHT 
+                
+                
+                ChopSticksStates.BRANCH_P2R:
+                    // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = 02 // provides a value of 5
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d12 // write to temp 4
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = d10 // temp 2, should be result of attacked hand  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.P2R_5ORLESS
+                
+                
+                ChopSticksStates.P2R_5ORLESS:
+                    regfile_ra2 = d12 //checks temp4 
+                    if(regfile_rd2[0]){ //  if temp4==1, hand is dead
+                        // set P2R score to 0
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = d01 // provides a value of 0 at the bsel
+                        wdsel = d00
+                        regfile_we = 01
+                        regfile_wa = d3 // write to register 2, for P2R
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.REMOVE_P2RAVAIL
+                    }
+                    else{ // if temp4==0, hand is alive 
+                        // UPDATE P2R score to whatever is in temp 2
+                        alufn = b011010 // "A"
+                        asel = 00 
+                        bsel = 00 
+                        wdsel = 00
+                        regfile_we = 01
+                        regfile_wa = d03 // write to address reg 3, which is address of P2R content 
+                        regfile_ra1 = d10 // temp2, should contain the result of the attacked hand
+                        //regfile_ra2 not needed 
+                        debug = b1000
+                        game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating hand
+                    }
+                
+                
+                ChopSticksStates.REMOVE_P2RAVAIL:
+                    // set P2RAVAIL to 0 
+                    alufn = b011100 // "B"
+                    bsel = b01 // provides a value of 0 
+                    wdsel = 0
+                    regfile_wa = d7 // write to register 7, dictates player 2 Right availability to 0 
+                    regfile_we = 1
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.BRANCHP1LAVAIL // goes to end game checker after updating avail
+                                                
+            }
+        }
+        
+    }
+}
+
+
+
