@@ -1,6 +1,6 @@
 // barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
 // This is the main file you will be editing for testing FSM modules
-module split_fsm (
+module chopsticks_fsm (
     input clk,  // clock
     input rst,  // reset
     input decrease_timer,
@@ -25,49 +25,49 @@ module split_fsm (
     //use this to list the states you are testing for your module
     enum SplitStates{
         //IMPLEMENTING CHECK IF SPLIT IS LEGAL MODULE
-        START,
-        BRANCHPLAYER,
+        SPCHECK_START,
+        SPCHECK_BRANCHPLAYER,
         // where the split module starts
         
         // player 1 turn
-        BRANCHP1LAVAIL,
-        EVALUATEHANDCOUNT1,
-        UPDATET2P1LS,
-        EVALUATEHANDCOUNT2,
+        SPCHECK_BRANCHP1LAVAIL,
+        SPCHECK_EVALUATEHANDCOUNT1,
+        SPCHECK_UPDATET2P1LS,
+        SPCHECK_EVALUATEHANDCOUNT2,
         
-        BRANCHP1RAVAIL,
-        EVALUATEHANDCOUNT3,
-        UPDATET2P1RS,
+        SPCHECK_BRANCHP1RAVAIL,
+        SPCHECK_EVALUATEHANDCOUNT3,
+        SPCHECK_UPDATET2P1RS,
         
-        BRANCHNOHANDS1,
-        CHECKHANDSCORE1,
-        BRANCHVALIDHANDS1,
+        SPCHECK_BRANCHNOHANDS1,
+        SPCHECK_CHECKHANDSCORE1,
+        SPCHECK_BRANCHVALIDHANDS1,
         
         // player 2 turn
-        BRANCHP2LAVAIL,
-        EVALUATEHANDCOUNT4,
-        UPDATET2P2LS,
-        EVALUATEHANDCOUNT5,
+        SPCHECK_BRANCHP2LAVAIL,
+        SPCHECK_EVALUATEHANDCOUNT4,
+        SPCHECK_UPDATET2P2LS,
+        SPCHECK_EVALUATEHANDCOUNT5,
         
-        BRANCHP2RAVAIL,
-        EVALUATEHANDCOUNT6,
-        UPDATET2P2RS,
+        SPCHECK_BRANCHP2RAVAIL,
+        SPCHECK_EVALUATEHANDCOUNT6,
+        SPCHECK_UPDATET2P2RS,
         
-        BRANCHNOHANDS2,
-        CHECKHANDSCORE2,
-        BRANCHVALIDHANDS2,
+        SPCHECK_BRANCHNOHANDS2,
+        SPCHECK_CHECKHANDSCORE2,
+        SPCHECK_BRANCHVALIDHANDS2,
         
         // to connect to next step
-        P1SPLITVALID,
-        P2SPLITVALID,
-        INVALID
+        SPCHECK_P1SPLITVALID,
+        SPCHECK_P2SPLITVALID,
+        SPCHECK_INVALID
        
     }
     
     // stores the states in a dff
     .clk(clk){
         .rst(rst){
-    dff game_fsm[$width(SplitStates)](#INIT(SplitStates.START))
+    dff game_fsm[$width(SplitStates)](#INIT(SplitStates.SPCHECK_START))
         }
     }
     always {
@@ -84,70 +84,70 @@ module split_fsm (
         
         game_fsm.d = game_fsm.q
         if(rst){
-            game_fsm.d = SplitStates.START
+            game_fsm.d = SplitStates.SPCHECK_START
         }
         else{
             //this is where you start coding out your states
             case(game_fsm.q){
-                SplitStates.START:
+                SplitStates.SPCHECK_START: // when split button is pressed
                     if(p1split){
-                        game_fsm.d = SplitStates.BRANCHPLAYER
+                        game_fsm.d = SplitStates.SPCHECK_BRANCHPLAYER
                         }
-                SplitStates.BRANCHPLAYER:
+                SplitStates.SPCHECK_BRANCHPLAYER:
                     regfile_ra2 = d13 //checks R13 currplayer
                     if(regfile_rd2[0]){
-                        game_fsm.d = SplitStates.BRANCHP2LAVAIL
+                        game_fsm.d = SplitStates.SPCHECK_BRANCHP2LAVAIL
                     }
                     else{
-                        game_fsm.d = SplitStates.BRANCHP1LAVAIL
+                        game_fsm.d = SplitStates.SPCHECK_BRANCHP1LAVAIL
                     }
                 
                 // P1 turn
-                SplitStates.BRANCHP1LAVAIL: // check availability of P1 left hand
+                SplitStates.SPCHECK_BRANCHP1LAVAIL: // check availability of P1 left hand
                 regfile_ra2 = d4
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT1
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT1
                     }
                 else{
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT2
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT2
                     }
                 
-                SplitStates.EVALUATEHANDCOUNT1: // indicate that p1left exists
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT1: // save that p1left exists
                     // implement signals
                     alufn = b011100 //"B"
                     bsel = b10
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P1LS
+                    game_fsm.d = SplitStates.SPCHECK_UPDATET2P1LS
                 
-                SplitStates.UPDATET2P1LS: // indicate number of fingers on p1left if the hand still has fingers
+                SplitStates.SPCHECK_UPDATET2P1LS: // save number of fingers on p1left if the hand still has fingers
                     alufn = b011010 //"A"
                     asel = b00
                     regfile_ra1 = b0000
                     regfile_we = b1
                     regfile_wa = b1010
-                    game_fsm.d = SplitStates.BRANCHP1RAVAIL
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHP1RAVAIL
                 
-                SplitStates.EVALUATEHANDCOUNT2: // indicate that no hands with fingers have been found yet
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT2: // save that no hands with fingers have been found yet
                     // implement signals
                     alufn = b011100 //"B"
                     bsel = b01
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHP1RAVAIL
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHP1RAVAIL
                 
-                SplitStates.BRANCHP1RAVAIL: // check availability of P1 Right hand
+                SplitStates.SPCHECK_BRANCHP1RAVAIL: // check availability of P1 Right hand
                 regfile_ra2 = d5
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT3
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT3
                     }
                 else{
-                    game_fsm.d = SplitStates.BRANCHNOHANDS1
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHNOHANDS1
                     } 
                 
-                SplitStates.EVALUATEHANDCOUNT3: // indicate if there is more/less than 1 hand
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT3: // save if there is more/less than 1 hand
                     alufn = b010110 //"XOR" 
                     asel = b00
                     bsel = b10
@@ -155,28 +155,28 @@ module split_fsm (
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P1RS
+                    game_fsm.d = SplitStates.SPCHECK_UPDATET2P1RS
                 
-                SplitStates.UPDATET2P1RS: // indicate number of fingers on p1right if the hand still has fingers
+                SplitStates.SPCHECK_UPDATET2P1RS: // save number of fingers on p1right if the hand still has fingers
                     alufn = b011010 //"A"
                     asel = b00
                     regfile_ra1 = b0001
                     regfile_we = b1
                     regfile_wa = b1010
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHNOHANDS1
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHNOHANDS1
                 
                     
-                SplitStates.BRANCHNOHANDS1: // check if player has 1 hand
+                SplitStates.SPCHECK_BRANCHNOHANDS1: // check if player has 1 hand
                 regfile_ra2 = d9
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.CHECKHANDSCORE1
+                    game_fsm.d = SplitStates.SPCHECK_CHECKHANDSCORE1
                     }
                 else{
-                    game_fsm.d = SplitStates.INVALID
+                    game_fsm.d = SplitStates.SPCHECK_INVALID
                     } 
                 
-                SplitStates.CHECKHANDSCORE1: // check if hand has less than or equal to 1 finger
+                SplitStates.SPCHECK_CHECKHANDSCORE1: // check if hand has less than or equal to 1 finger
                     alufn = b110111 //"CMPLE"             
                     asel = b00
                     bsel = b10
@@ -184,64 +184,64 @@ module split_fsm (
                     regfile_we = b1
                     regfile_wa = b1010
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHVALIDHANDS1
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHVALIDHANDS1
                 
-                SplitStates.BRANCHVALIDHANDS1: // branch according to previous state
+                SplitStates.SPCHECK_BRANCHVALIDHANDS1: // branch according to previous state
                 regfile_ra2 = d10
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.INVALID
+                    game_fsm.d = SplitStates.SPCHECK_INVALID
                     }
                 else{
-                    game_fsm.d = SplitStates.P1SPLITVALID
+                    game_fsm.d = SplitStates.SPCHECK_P1SPLITVALID
                     }
                 
                 // P2 turn
                 
-                SplitStates.BRANCHP2LAVAIL: // check availability of P2 left hand
+                SplitStates.SPCHECK_BRANCHP2LAVAIL: // check availability of P2 left hand
                 regfile_ra2 = d6
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT4
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT4
                     }
                 else{
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT5
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT5
                     }
                 
-                SplitStates.EVALUATEHANDCOUNT4: // indicate that p2left exists
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT4: // save that p2left exists
                     // implement signals
                     alufn = b011100 //"B"
                     bsel = b10
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P2LS
+                    game_fsm.d = SplitStates.SPCHECK_UPDATET2P2LS
                 
-                SplitStates.UPDATET2P2LS: // indicate number of fingers on p2left if the hand still has fingers
+                SplitStates.SPCHECK_UPDATET2P2LS: // save number of fingers on p2left if the hand still has fingers
                     alufn = b011010 //"A"
                     asel = b00
                     regfile_ra1 = b0010
                     regfile_we = b1
                     regfile_wa = b1010
-                    game_fsm.d = SplitStates.BRANCHP2RAVAIL
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHP2RAVAIL
                 
-                SplitStates.EVALUATEHANDCOUNT5: // indicate that no hands with fingers have been found yet
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT5: // save that no hands with fingers have been found yet
                     // implement signals
                     alufn = b011100 //"B"
                     bsel = b01
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHP2RAVAIL
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHP2RAVAIL
                 
-                SplitStates.BRANCHP2RAVAIL: // check availability of P1 Right hand
+                SplitStates.SPCHECK_BRANCHP2RAVAIL: // check availability of P1 Right hand
                 regfile_ra2 = d7
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT6
+                    game_fsm.d = SplitStates.SPCHECK_EVALUATEHANDCOUNT6
                     }
                 else{
-                    game_fsm.d = SplitStates.BRANCHNOHANDS2
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHNOHANDS2
                     } 
                 
-                SplitStates.EVALUATEHANDCOUNT6: // indicate if there is more/less than 1 hand
+                SplitStates.SPCHECK_EVALUATEHANDCOUNT6: // indicate if there is more/less than 1 hand
                     alufn = b010110 //"XOR" 
                     asel = b00
                     bsel = b10
@@ -249,28 +249,28 @@ module split_fsm (
                     regfile_we = b1
                     regfile_wa = b1001
                     wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P2RS
+                    game_fsm.d = SplitStates.SPCHECK_UPDATET2P2RS
                 
-                SplitStates.UPDATET2P2RS: // indicate number of fingers on p1right if the hand still has fingers
+                SplitStates.SPCHECK_UPDATET2P2RS: // save number of fingers on p1right if the hand still has fingers
                     alufn = b011010 //"A"
                     asel = b00
                     regfile_ra1 = b0011
                     regfile_we = b1
                     regfile_wa = b1010
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHNOHANDS2
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHNOHANDS2
                 
                     
-                SplitStates.BRANCHNOHANDS2: // check if player has 1 hand
+                SplitStates.SPCHECK_BRANCHNOHANDS2: // check if player has 1 hand
                 regfile_ra2 = d9
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.CHECKHANDSCORE2
+                    game_fsm.d = SplitStates.SPCHECK_CHECKHANDSCORE2
                     }
                 else{
-                    game_fsm.d = SplitStates.INVALID
+                    game_fsm.d = SplitStates.SPCHECK_INVALID
                     } 
                 
-                SplitStates.CHECKHANDSCORE2: // check if hand has less than or equal to 1 finger
+                SplitStates.SPCHECK_CHECKHANDSCORE2: // check if hand has less than or equal to 1 finger
                     alufn = b110111 //"CMPLE"             
                     asel = b00
                     bsel = b10
@@ -278,16 +278,47 @@ module split_fsm (
                     regfile_we = b1
                     regfile_wa = b1010
                     wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHVALIDHANDS2
+                    game_fsm.d = SplitStates.SPCHECK_BRANCHVALIDHANDS2
                 
-                SplitStates.BRANCHVALIDHANDS2: // branch according to previous state
+                SplitStates.SPCHECK_BRANCHVALIDHANDS2: // branch according to previous state
                 regfile_ra2 = d10
                 if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.INVALID
+                    game_fsm.d = SplitStates.SPCHECK_INVALID
                     }
                 else{
-                    game_fsm.d = SplitStates.P2SPLITVALID
+                    game_fsm.d = SplitStates.SPCHECK_P2SPLITVALID
                     }
+                
+                // adjust outputs for testing and debugging, should link to next part of fsm in final
+                SplitStates.SPCHECK_INVALID:
+                    
+                    //set P1L score as 10
+                    alufn = b011010 //"A"             
+                    asel = b11 
+                    regfile_we = b1
+                    regfile_wa = b0000
+                    wdsel = b00
+                    
+                    game_fsm.d = SplitStates.SPCHECK_INVALID
+                
+                SplitStates.SPCHECK_P1SPLITVALID:
+                    //set P1L score as 5
+                    alufn = b011010 //"A"             
+                    asel = b10 
+                    regfile_we = b1
+                    regfile_wa = b0000
+                    wdsel = b00
+                    game_fsm.d = SplitStates.SPCHECK_P1SPLITVALID
+                
+                SplitStates.SPCHECK_P2SPLITVALID:
+                    //set P2L score as 5
+                    alufn = b011010 //"A"             
+                    asel = b10 
+                    regfile_we = b1
+                    regfile_wa = b0010
+                    wdsel = b00
+                    game_fsm.d = SplitStates.SPCHECK_P2SPLITVALID
+                
                                                 
             }
         }
