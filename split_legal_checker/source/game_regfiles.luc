@@ -24,13 +24,13 @@ module game_regfiles (
             //By right all INIT to 0 except for Hand avail, but for the sake of testing, will 
             //need to hardscore some values.
             dff p1l_score[32](#INIT(1))
-            dff p1r_score[32](#INIT(2))
+            dff p1r_score[32](#INIT(1))
             dff p2l_score[32](#INIT(1))
-            dff p2r_score[32](#INIT(0))
+            dff p2r_score[32](#INIT(1))
             dff p1l_avail[32](#INIT(1))
             dff p1r_avail[32](#INIT(1))
             dff p2l_avail[32](#INIT(1))
-            dff p2r_avail[32](#INIT(0))
+            dff p2r_avail[32](#INIT(1))
             dff timer[32](#INIT(9))
             dff temp1[32](#INIT(0))
             dff temp2[32](#INIT(1))
