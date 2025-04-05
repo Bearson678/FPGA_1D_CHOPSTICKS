@@ -1,0 +1,443 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input p1split,
+    input p2split,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    //use this to list the states you are testing for your module
+    enum ChopSticksStates{
+        //IMPLEMENTING AFTER TURN END GAME CHECK MODULE & THE PENALTY MODULE
+        START,
+        ILL_PENALTYBRANCH,//attempting to combine 3 states into one
+        ILL_P1RPENALTY,
+        ILL_P2RPENALTY,
+        WINNER_BRANCHP1LAVAIL,
+        //UPDATETEMP1_1,
+        //UPDATETEMP1_0,
+        //UPDATETEMP2_1,
+        //UPDATETEMP2_0,
+        WINNER_BRANCHP1RAVAIL,
+        WINNER_BRANCHP2LAVAIL,
+        WINNER_BRANCHP2RAVAIL,
+        WINNER_BRANCHTEMP1,
+        WINNER_BRANCHTEMP2,
+        //LIGHTP1LHAND,
+        WINNER_LIGHTP1RHAND,
+        //LIGHTP2LHAND,
+        WINNER_LIGHTP2RHAND,
+        WINNER_OFFP1LHAND,
+        WINNER_OFFP1RHAND,
+        WINNER_OFFP2LHAND,
+        WINNER_OFFP2RHAND,
+        WINNER_OFFP1LAVAIL,
+        WINNER_OFFP1RAVAIL,
+        WINNER_OFFP2LAVAIL,
+        WINNER_OFFP2RAVAIL,
+        WINNER_ONP1LAVAIL,
+        WINNER_ONP1RAVAIL,
+        WINNER_ONP2LAVAIL,
+        WINNER_ONP2RAVAIL,        
+        END
+    
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(ChopSticksStates)](#INIT(ChopSticksStates.START))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = d9
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = ChopSticksStates.START
+        }
+        else{
+            //this is where you start coding out your states
+            case(game_fsm.q){
+                ChopSticksStates.START:
+                if(p1split){
+                game_fsm.d = ChopSticksStates.ILL_PENALTYBRANCH
+                    }
+                else if(p2split){
+                     game_fsm.d = ChopSticksStates.WINNER_BRANCHP1LAVAIL  
+                    }
+                //Attempt to combine 3 branches into one
+                ChopSticksStates.ILL_PENALTYBRANCH:
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ //if is player 2
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0001
+                    game_fsm.d = ChopSticksStates.ILL_P2RPENALTY                        
+                    }
+                else{//if is player 1
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0001
+                    game_fsm.d = ChopSticksStates.ILL_P1RPENALTY                         
+                    }
+                ChopSticksStates.ILL_P1RPENALTY:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0010
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP1LAVAIL 
+                                   
+                 ChopSticksStates.ILL_P2RPENALTY:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0010
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP1LAVAIL
+                
+                
+                
+                //Checking who is alive??
+                ChopSticksStates.WINNER_BRANCHP1LAVAIL:                               
+                regfile_ra2 = d4
+                if(regfile_rd2[0]){ //if P1L is avail
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0011
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP1RAVAIL                  
+                    }
+                else{//if P1L not avail
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0011
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP1RAVAIL                       
+                    }
+                ChopSticksStates.WINNER_BRANCHP1RAVAIL:
+                 regfile_ra2 = d5
+                if(regfile_rd2[0]){ //if P1R is avail
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 1
+                    debug = b0100
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP2LAVAIL                  
+                    }
+                else{//if P1R not avail
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP2LAVAIL                       
+                    }
+                ChopSticksStates.WINNER_BRANCHP2LAVAIL:                   
+                 regfile_ra2 = d6
+                if(regfile_rd2[0]){ //if P2L is avail
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    debug = b0101
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP2RAVAIL                  
+                    }
+                else{//if P2L not avail
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    debug = b0101
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHP2RAVAIL                     
+                    }
+                ChopSticksStates.WINNER_BRANCHP2RAVAIL:
+                  regfile_ra2 = d7
+                if(regfile_rd2[0]){ //if P2R is avail
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d10
+                    regfile_we = 1
+                    debug = b0110
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHTEMP1                 
+                    }
+                else{//if P2R not avail
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHTEMP1                       
+                    }                                   
+                ChopSticksStates.WINNER_BRANCHTEMP1:
+                  regfile_ra2 = d9
+                if(regfile_rd2[0]){ //if P1 has at least 1 hand left
+                    game_fsm.d = ChopSticksStates.WINNER_BRANCHTEMP2                
+                    }
+                else{//if P1 has no hands left, light P2L left hand
+                    wdsel = 1
+                    regfile_wa = d2
+                    regfile_we = 1
+                    debug = b0111
+                    game_fsm.d = ChopSticksStates.WINNER_LIGHTP2RHAND                    
+                    }
+                ChopSticksStates.WINNER_LIGHTP2RHAND:
+                    wdsel = 1
+                    regfile_wa = d3
+                    regfile_we = 1
+                    debug = b1000
+                    game_fsm.d = ChopSticksStates.WINNER_OFFP1LHAND
+                
+                ChopSticksStates.WINNER_BRANCHTEMP2:
+                  regfile_ra2 = d10
+                if(regfile_rd2[0]){ //if P2 has at least 1 hand left
+                    game_fsm.d = ChopSticksStates.END               
+                    }
+                else{//if P2 has no hands left, light P1L left hand
+                    wdsel = 1
+                    regfile_wa = d0
+                    regfile_we = 1
+                    debug = b1001
+                    game_fsm.d = ChopSticksStates.WINNER_LIGHTP1RHAND                    
+                    }
+                ChopSticksStates.WINNER_LIGHTP1RHAND:
+                    wdsel = 1
+                    regfile_wa = d1
+                    regfile_we = 1
+                    debug = b1010
+                    game_fsm.d = ChopSticksStates.WINNER_OFFP2LHAND
+                
+                
+                //after lighting up the winner hand, off the loser hand
+                ChopSticksStates.WINNER_OFFP1LHAND:
+                    wdsel = 2
+                    regfile_wa = d0
+                    regfile_we = 1
+                    debug = b1011
+                game_fsm.d = ChopSticksStates.WINNER_OFFP1RHAND                   
+                
+                ChopSticksStates.WINNER_OFFP1RHAND:
+                    wdsel = 2
+                    regfile_wa = d1
+                    regfile_we = 1
+                    debug = b1011
+                game_fsm.d = ChopSticksStates.WINNER_OFFP1LAVAIL
+                
+                ChopSticksStates.WINNER_OFFP2LHAND:
+                    wdsel = 2
+                    regfile_wa = d2
+                    regfile_we = 1
+                    debug = b1011
+                game_fsm.d = ChopSticksStates.WINNER_OFFP2RHAND
+                
+                ChopSticksStates.WINNER_OFFP2RHAND:                                          
+                    wdsel = 2
+                    regfile_wa = d3
+                    regfile_we = 1
+                    debug = b1011
+                game_fsm.d = ChopSticksStates.WINNER_OFFP2LAVAIL  
+                
+                ChopSticksStates.WINNER_OFFP1LAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_OFFP1RAVAIL
+                                   
+                ChopSticksStates.WINNER_OFFP1RAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_ONP2LAVAIL                    
+                                                              
+                ChopSticksStates.WINNER_OFFP2LAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_OFFP2RAVAIL
+                                    
+                ChopSticksStates.WINNER_OFFP2RAVAIL:
+                    alufn = b011100
+                    bsel = b01
+                    wdsel = 0
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_ONP1LAVAIL                      
+                    
+                ChopSticksStates.WINNER_ONP1LAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_ONP1RAVAIL                      
+                    
+                ChopSticksStates.WINNER_ONP1RAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.END
+                                                                               
+                ChopSticksStates.WINNER_ONP2LAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.WINNER_ONP2RAVAIL
+                  
+                ChopSticksStates.WINNER_ONP2RAVAIL:                     
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = 0
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0001
+                game_fsm.d = ChopSticksStates.END
+                                     
+                ChopSticksStates.END:
+                    game_fsm.d = ChopSticksStates.START                                        
+                
+            
+        }
+        
+    }
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

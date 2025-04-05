@@ -1,0 +1,338 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input p1split,
+    input p2split,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    //use this to list the states you are testing for your module
+    enum ChopSticksStates{
+        //IMPLEMENTING SPLIT MODULE
+        START,
+        SPLIT_BRANCHPLAYER,
+        //where the split module starts
+        SPLIT_BRANCHP1LAVAIL,
+        SPLIT_BRANCHP2LAVAIL,
+        SPLIT_DIVP1RSCORE,
+        SPLIT_UPDATEP1LSCORE,
+        SPLIT_UPDATEP1LAVAIL,
+        SPLIT_DIVP1LSCORE,
+        SPLIT_UPDATEP1RSCORE,
+        SPLIT_UPDATEP1RAVAIL,
+        SPLIT_DIVP2RSCORE,
+        SPLIT_UPDATEP2LSCORE,
+        SPLIT_UPDATEP2LAVAIL,
+        SPLIT_DIVP2LSCORE,
+        SPLIT_UPDATEP2RSCORE,
+        SPLIT_UPDATEP2RAVAIL,
+        END
+    
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(ChopSticksStates)](#INIT(ChopSticksStates.START))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = d9
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = ChopSticksStates.START
+        }
+        else{
+            //this is where you start coding out your states
+            case(game_fsm.q){
+                ChopSticksStates.START:
+                    if(p1split){
+                        game_fsm.d = ChopSticksStates.SPLIT_BRANCHPLAYER
+                        }
+                ChopSticksStates.SPLIT_BRANCHPLAYER:
+                    regfile_ra2 = d13 //checks R13 currplayer
+                    if(regfile_rd2[0]){
+                        game_fsm.d = ChopSticksStates.SPLIT_BRANCHP2LAVAIL
+                    }
+                    else{
+                        game_fsm.d = ChopSticksStates.SPLIT_BRANCHP1LAVAIL
+                    }
+                //Here onwards is where the split module starts
+                ChopSticksStates.SPLIT_BRANCHP1LAVAIL:
+                regfile_ra2 = d4 //checks R4 p1l avail
+                if (regfile_rd2[0]){
+                        game_fsm.d = ChopSticksStates.SPLIT_DIVP1LSCORE
+                    }
+                else{
+                        game_fsm.d = ChopSticksStates.SPLIT_DIVP1RSCORE
+                    }
+                
+                ChopSticksStates.SPLIT_BRANCHP2LAVAIL:
+                regfile_ra2 = d6 //checks R6 p2l avail
+                if (regfile_rd2[0]){
+                        game_fsm.d = ChopSticksStates.SPLIT_DIVP2LSCORE
+                    }
+                else{
+                        game_fsm.d = ChopSticksStates.SPLIT_DIVP2RSCORE
+                    }
+                ChopSticksStates.SPLIT_DIVP1RSCORE:
+                    alufn = b000011 //"DIV"
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_wa = d1
+                    regfile_we = 1
+                    regfile_ra1 = d1
+                    debug = b0001                    
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP1LSCORE           
+                                
+                
+                ChopSticksStates.SPLIT_DIVP1LSCORE:
+                    alufn = b000011
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_wa = d0
+                    regfile_we = 1
+                    regfile_ra1 = d0
+                    debug = b0001                    
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP1RSCORE                    
+                
+                ChopSticksStates.SPLIT_DIVP2LSCORE:
+                    alufn = b000011
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_wa = d2
+                    regfile_we = 1
+                    regfile_ra1 = d2
+                    debug = b0001                    
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP2RSCORE                    
+                
+                
+                ChopSticksStates.SPLIT_DIVP2RSCORE:
+                    alufn = b000011
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_wa = d3
+                    regfile_we = 1
+                    regfile_ra1 = d3
+                    debug = b0001                    
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP2LSCORE                    
+                
+                ChopSticksStates.SPLIT_UPDATEP1LSCORE:
+                    alufn = b011010 //"A"
+                    asel = b00
+                    wdsel = b00
+                    regfile_wa = d0
+                    regfile_we = 1
+                    regfile_ra1 = d1
+                    debug = b0010                        
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP1LAVAIL              
+                
+                ChopSticksStates.SPLIT_UPDATEP1RSCORE:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = b00
+                    regfile_wa = d1
+                    regfile_we = 1
+                    regfile_ra1 = d0
+                    debug = b0010                        
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP1RAVAIL     
+                
+                
+                ChopSticksStates.SPLIT_UPDATEP2LSCORE:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = b00
+                    regfile_wa = d2
+                    regfile_we = 1
+                    regfile_ra1 = d3
+                    debug = b0010                        
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP2LAVAIL                     
+                
+                
+                ChopSticksStates.SPLIT_UPDATEP2RSCORE:
+                    alufn = b011010
+                    asel = b00
+                    wdsel = b00
+                    regfile_wa = d3
+                    regfile_we = 1
+                    regfile_ra1 = d2
+                    debug = b0010                        
+                    game_fsm.d = ChopSticksStates.SPLIT_UPDATEP2RAVAIL                     
+                
+               ChopSticksStates.SPLIT_UPDATEP1LAVAIL:
+                    alufn = b011100 //"B"
+                    bsel = b10
+                    wdsel = b00
+                    regfile_wa = d4
+                    regfile_we = 1
+                    debug = b0011                        
+                    game_fsm.d = ChopSticksStates.END                             
+                
+               ChopSticksStates.SPLIT_UPDATEP1RAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = b00
+                    regfile_wa = d5
+                    regfile_we = 1
+                    debug = b0011                        
+                    game_fsm.d = ChopSticksStates.END                  
+                
+                ChopSticksStates.SPLIT_UPDATEP2LAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = b00
+                    regfile_wa = d6
+                    regfile_we = 1
+                    debug = b0011                        
+                    game_fsm.d = ChopSticksStates.END  
+                
+                 ChopSticksStates.SPLIT_UPDATEP2RAVAIL:
+                    alufn = b011100
+                    bsel = b10
+                    wdsel = b00
+                    regfile_wa = d7
+                    regfile_we = 1
+                    debug = b0011                        
+                    game_fsm.d = ChopSticksStates.END                
+                             
+                ChopSticksStates.END:
+                    alufn = 0
+                    asel = 0
+                    bsel = 0
+                    wdsel = 0
+                    regfile_wa = d9
+                    regfile_we = 0
+                    regfile_ra1 = d0
+                    regfile_ra2 = d0
+                    debug = b0000
+                    game_fsm.d = ChopSticksStates.START             
+                
+
+                
+                                               
+            }
+        }
+        
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
