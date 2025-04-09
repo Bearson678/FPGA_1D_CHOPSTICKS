@@ -1,0 +1,271 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input decrease_timer,
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input p1split,
+    input p2split,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    //use this to list the states you are testing for your module
+    enum MainStates{
+        //IMPLEMENTING THE TIMER MODULE
+        IDLE, 
+        OPTION_SELECT, 
+        
+        // attack others
+        SELECT_OPP_HAND,
+        SELECT_OWN_HAND,
+        CALCULATE_ATTACK_OTHERS,
+        
+        
+        // attack self
+        SELECT_TO_HIT,
+        CALCULATE_ATTACK_SELF,
+        
+        // split
+        SPLIT,
+        
+        CURR_WIN,
+        
+        OPP_WIN, 
+        
+        CONTINUE, // to reset all 
+        
+        TURN_SELECT
+        
+    
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(MainStates)](#INIT(MainStates.IDLE))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = MainStates.IDLE
+        }
+        else{
+            //this is where you start coding out your states
+              case(game_fsm.q){
+                MainStates.IDLE:
+                if(p1r_button){ // TO CHANGE TO START BUTTON
+                                         
+                game_fsm.d = MainStates.OPTION_SELECT // to be changed
+                    }
+                
+                MainStates.OPTION_SELECT: 
+                     
+                if (p1l_button){
+                // branch curr player to check validity and determine next state
+                    }
+                if (p2l_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p1r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p2r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p1split){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p2split){
+                // branch curr player to check validity and determine next state        
+                    }
+                
+                MainStates.SELECT_OPP_HAND: // attack opp - use separate module to determine branch + update temp1 if needed
+                
+                if (p1l_button){
+                // branch curr player to check validity and determine next state
+                    }
+                if (p2l_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p1r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p2r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                
+                MainStates.SELECT_OWN_HAND: // attack opp - use separate module to determine branch + update temp2 if needed
+                
+                if (p1l_button){
+                // branch curr player to check validity and determine next state
+                    }
+                if (p2l_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p1r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                if (p2r_button){
+                // branch curr player to check validity and determine next state        
+                    }
+                
+                MainStates.CALCULATE_ATTACK_OTHERS:
+                // use seperate module to check validity + update hand values
+                    game_fsm.d = MainStates.CALCULATE_ATTACK_OTHERS // placeholder
+                
+                MainStates.SELECT_TO_HIT: // attack self - use separate module to determine branch + update temp1 if needed
+                
+                if (p1l_button){
+                // use branch curr player module to check validity and determine next state
+                    }
+                if (p2l_button){
+                // use branch curr player module to check validity and determine next state        
+                    }
+                if (p1r_button){
+                // use branch curr player module to check validity and determine next state        
+                    }
+                if (p2r_button){
+                // use branch curr player module to check validity and determine next state        
+                    }
+                
+                MainStates.CALCULATE_ATTACK_SELF:
+                // use seperate module to check validity + update hand values
+                    game_fsm.d = MainStates.CALCULATE_ATTACK_SELF // placeholder
+                  
+                MainStates.SPLIT:
+                    // use seperate module to check validity + update hand values 
+                    game_fsm.d = MainStates.SPLIT // placeholder
+                
+                    
+                MainStates.CONTINUE:
+                    // module to reset temps
+                    game_fsm.d = MainStates.TURN_SELECT
+                
+                MainStates.TURN_SELECT:
+                    // module to swap all addresses and currentplayer
+                    // gotta figure out parameters here
+                    game_fsm.d = MainStates.OPTION_SELECT
+                                              
+                
+            
+        }
+        
+    }
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
