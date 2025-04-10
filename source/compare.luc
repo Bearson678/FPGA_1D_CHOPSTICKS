@@ -7,7 +7,7 @@ module compare (
 ) {
     
     always {
-        case(c{alufn[2],alufn[1]}){
+        case(alufn[2:1]){
             b01: cmp = z
             b10: cmp = n ^v
             b11: cmp = z | (n^v)

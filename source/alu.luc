@@ -14,10 +14,10 @@ module alu (
     shifter shifter1;
     multiplier multiplier1
     divider2 divider2_1
-    sig out_sig[32]
+    
     //muxes to be usedd for us to select the approriate CLUs
-    //mux_4 mux4_final32[32]
-    //mux_4 mux4_final32_1[32]
+    mux_4 mux4_final32[32]
+    mux_4 mux4_final32_1[32]
     
     always {
     // assign values to the input and output ports of each CLUs
@@ -47,47 +47,36 @@ module alu (
     multiplier1.b = b
         
     divider2_1.a = a
-        
-    case(alufn){
-            6h00: // ADD
-                out_sig = adder1.out
-            6h01: // SUB
-                out_sig = adder1.out
-            6h02: // MUL
-                out_sig = multiplier1.mul
-            6h03://DIV
-                out_sig = divider2_1.d
-            6h18: // BITWISE AND
-                out_sig = boolean1.bool
-            6h1E: // BITWISE OR 
-                out_sig = boolean1.bool
-            6h16: // BITWISE XOR
-                out_sig = boolean1.bool
-            6h1A: // "A"
-                out_sig = boolean1.bool
-            6h1C:// "B"
-                out_sig = boolean1.bool
-            6h20: // SHL 
-                out_sig = shifter1.shift
-            6h21: // SHR 
-                out_sig = shifter1.shift
-            6h23: // SRA 
-                out_sig = shifter1.shift
-            6h33: // CMPEQ 
-                out_sig = c{31b0,compare1.cmp} 
-            6h35: // CMPLT 
-                out_sig = c{31b0,compare1.cmp} 
-            6h37: // CMPLE
-                out_sig = c{31b0,compare1.cmp} 
-            
-            
-            default:
-                out_sig = 0
-           
-            
-        }
-        out = out_sig
 
+        
+    //Assigning the relevant alufn bits as the selector inputs to each 4-1 muxs
+    //mux4_final32_1 handles the math operations like ADD,SUB,MUL and DIV
+    mux4_final32_1.s0 = 32x{alufn[0]}
+    mux4_final32_1.s1 = 32x{alufn[1]}
+   //mux4_final32 handles the other operations like COMPARE,BOOL,SHIFT
+    mux4_final32.s0 = 32x{alufn[4]}
+    mux4_final32.s1 = 32x{alufn[5]}
+        
+    repeat(i,32){ //for each 1bit mux in the 32-bit 4-1 muxes
+       //Assign the ith bit of the CLU's output to the ith mux at their assigned input positions
+       mux4_final32_1.in[i][0] = adder1.out[i]
+       mux4_final32_1.in[i][2] = multiplier1.mul[i]
+       mux4_final32_1.in[i][3] = divider2_1.d[i] 
+       mux4_final32_1.in[i][1] = adder1.out[i]
+       mux4_final32.in[i][0] = mux4_final32_1.out[i]
+       mux4_final32.in[i][1] = boolean1.bool[i]
+       mux4_final32.in[i][2] = shifter1.shift[i]
+       if(i == 0){
+          mux4_final32.in[i][3] = compare1.cmp //Assign the output of the compare clu to be the 0th bit
+        }
+       else{
+          mux4_final32.in[i][3] = 0 //else the rest of the compare output is set to 0
+        }
+
+    }
+        
+
+    out = mux4_final32.out //the output of the ALU is assigned to the output of the mux schematic
         
         
         
