@@ -22,27 +22,42 @@ module game_regfiles (
         .rst(rst){
             //REGISTERS FOR STORING DATA
             //By right all INIT to 0 except for Hand avail, but for the sake of testing, will need to hardscore some values.
-            dff p1l_score[32](#INIT(0))
-            dff p1r_score[32](#INIT(0))
-            dff p2l_score[32](#INIT(0))
-            dff p2r_score[32](#INIT(0))
-            dff p1l_avail[32](#INIT(0))
-            dff p1r_avail[32](#INIT(0))
-            dff p2l_avail[32](#INIT(0))
-            dff p2r_avail[32](#INIT(0))
-            dff timer[32](#INIT(9))
+            dff p1l_score[32](#INIT(2))
+            dff p1r_score[32](#INIT(4))
+            dff p2l_score[32](#INIT(3))
+            dff p2r_score[32](#INIT(1))
+            dff p1l_avail[32](#INIT(1))
+            dff p1r_avail[32](#INIT(1))
+            dff p2l_avail[32](#INIT(1))
+            dff p2r_avail[32](#INIT(1))
+            dff timer[32](#INIT(0))
             dff temp1[32](#INIT(0))
             dff temp2[32](#INIT(0))
             dff temp3[32](#INIT(0))
-            dff temp4[32](#INIT(0))
+            dff illegal[1](#INIT(0))
             dff current_player[32](#INIT(0))
             dff timerLED_out[32](#INIT(0))
         }
     }
     always {
         // case switch statements for the REGFILE so that it can switch to different registers based on the value given to each control signal
-        
         //WE
+        p1l_score.d = p1l_score.q
+        p1r_score.d = p1r_score.q
+        p2l_score.d = p2l_score.q
+        p2r_score.d = p2r_score.q
+        p1l_avail.d = p1l_avail.q
+        p1r_avail.d = p1r_avail.q
+        p2l_avail.d = p2l_avail.q
+        p2r_avail.d = p2r_avail.q
+        timer.d = timer.q
+        temp1.d = temp1.q
+        temp2.d = temp2.q
+        temp3.d = temp3.q
+        illegal.d = illegal.q
+        current_player.d = current_player.q
+        
+        
         if(we){
             //WA
             case(wa){
@@ -58,7 +73,7 @@ module game_regfiles (
                 d9: temp1.d = data
                 d10: temp2.d = data
                 d11: temp3.d = data
-                d12: temp4.d = data
+                d12: illegal.d = data
                 d13: current_player.d = data
                 d14: timerLED_out.d = data
             }
@@ -77,8 +92,8 @@ module game_regfiles (
                 d9: rd1 = temp1.q
                 d10: rd1 = temp2.q
                 d11: rd1 = temp3.q
-                d12: rd1 = temp4.q
-                d13: rd1 = current_player.q
+                d12: rd1 = illegal.q
+                d13: rd1 = current_player.q 
                 d14: rd1 = timerLED_out.q
             default: rd1 = 0
         }
@@ -96,7 +111,7 @@ module game_regfiles (
                 d9: rd2 = temp1.q
                 d10: rd2 = temp2.q
                 d11: rd2 = temp3.q
-                d12: rd2 = temp4.q
+                d12: rd2 = illegal.q
                 d13: rd2 = current_player.q
                 d14: rd2 = timerLED_out.q
             default: rd2 = 0

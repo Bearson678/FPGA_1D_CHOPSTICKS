@@ -1,0 +1,267 @@
+module opp_attack #(
+    
+    OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
+    OWNRSADDR ~ 1 : OWNRSADDR == 1 || OWNRSADDR == 3,
+    OWNLAADDR ~ 4 : OWNLAADDR == 4 || OWNLAADDR == 6, 
+    OWNRAADDR ~ 5 : OWNRAADDR == 5 || OWNRAADDR == 7,
+    
+    OPPLSADDR ~ 2 : OPPLSADDR == 0 || OPPLSADDR == 2,
+    OPPRSADDR ~ 3 : OPPRSADDR == 1 || OPPRSADDR == 3,
+    OPPLAADDR ~ 6 : OPPLAADDR == 4 || OPPLAADDR == 6, 
+    OPPRAADDR ~ 7 : OPPRAADDR == 5 || OPPRAADDR == 7
+    
+    
+
+
+)(
+    input clk,  // clock
+    input rst,  // reset
+    input regfile_rd2[32],
+    input start_oppatk[1],
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4],
+    output end
+) {
+    enum OppAttackStates{
+        //IMPLEMENTING THE TIMER MODULE
+        IDLE,
+        BRANCH_ATTACKINGHAND, 
+        
+        BRANCH_OWN_LA,
+        STORE_OWN_LS,
+        
+        BRANCH_OWN_RA,
+        STORE_OWN_RS,
+        
+        BRANCH_ATTACKEDHAND,
+        
+        BRANCH_OPP_LA,
+        ADD_OPP_LS,
+        
+        BRANCH_OPP_RA,
+        ADD_OPP_RS,
+        
+        CHECK_TOTAL,
+        
+        BRANCH_TOTAL,
+        
+        BRANCH_ATTACKEDHAND2,
+        UPDATE_OPPLS,
+        UPDATE_OPPRS,
+        
+        BRANCH_ATTACKEDHAND3,
+        
+        BRANCH_OPP_RA2,
+        UPDATE_OPP_LA,
+        UPDATE_OPP_LS,
+        
+        BRANCH_OPP_LA2,
+        UPDATE_OPP_RA,
+        UPDATE_OPP_RS,
+        
+        ILLEGAL,
+        
+        CONTINUE,
+        
+        END
+    
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(OppAttackStates)](#INIT(OppAttackStates.IDLE))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        end = 0
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = OppAttackStates.IDLE
+        }
+        else{
+            case(game_fsm.q){
+                
+                OppAttackStates.IDLE:
+                if(start_oppatk){
+                        game_fsm.d = OppAttackStates.BRANCH_ATTACKINGHAND
+                    }
+                
+                OppAttackStates.BRANCH_ATTACKINGHAND:
+                regfile_ra2 = d10 // branch temp2
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.BRANCH_OWN_RA
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.BRANCH_OWN_LA
+                    }
+                
+                OppAttackStates.BRANCH_OWN_LA:
+                regfile_ra2 = OWNLAADDR 
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.STORE_OWN_LS
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.ILLEGAL
+                    }
+                
+                OppAttackStates.STORE_OWN_LS:
+                    // control signals to Update Temp2 to store Reg[OwnLSAddr]
+                    game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND
+                
+                OppAttackStates.BRANCH_OWN_RA:
+                regfile_ra2 = OWNRAADDR
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.STORE_OWN_RS
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.ILLEGAL
+                    }
+                
+                OppAttackStates.STORE_OWN_RS:
+                    // control signals to Update Temp2 to store Reg[OwnRSAddr]
+                    game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND
+                
+                OppAttackStates.BRANCH_ATTACKEDHAND:
+                regfile_ra2 = d9 // branch temp1
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.BRANCH_OPP_RA
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.BRANCH_OPP_LA
+                    } 
+                OppAttackStates.BRANCH_OPP_LA:
+                regfile_ra2 = OPPLAADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = OppAttackStates.ADD_OPP_LS
+                    }
+                else{
+                    game_fsm.d = OppAttackStates.ILLEGAL
+                    }
+                
+                OppAttackStates.ADD_OPP_LS:
+                    // add signals for Add Reg[OppLSAddr] to Temp2
+                    game_fsm.d = OppAttackStates.CHECK_TOTAL
+                
+                    
+                OppAttackStates.BRANCH_OPP_RA:
+                regfile_ra2 = OPPRAADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = OppAttackStates.ADD_OPP_RS
+                    }
+                else{
+                    game_fsm.d = OppAttackStates.ILLEGAL
+                    }
+                
+                OppAttackStates.ADD_OPP_RS:
+                    // add signals for Add Reg[OppRSAddr] to Temp2
+                    game_fsm.d = OppAttackStates.CHECK_TOTAL
+                
+                OppAttackStates.CHECK_TOTAL:
+                    // add signals for 5 <= Temp2 -> Temp3
+                    game_fsm.d = OppAttackStates.BRANCH_TOTAL
+                
+                OppAttackStates.BRANCH_TOTAL:
+                regfile_ra2 = d11
+                if(regfile_rd2[0]){ // kill hand
+                    game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND3
+                    }
+                else{ // does not kill hand
+                    game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND2
+                    }    
+                
+                OppAttackStates.BRANCH_ATTACKEDHAND2:
+                regfile_ra2 = d9 // branch temp1
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.UPDATE_OPPRS
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.UPDATE_OPPLS
+                    }    
+                
+                OppAttackStates.UPDATE_OPPLS:
+                    // add signals to Update Reg[OppLSAddr] to store temp2
+                    game_fsm.d = OppAttackStates.CONTINUE
+                             
+                OppAttackStates.UPDATE_OPPRS:
+                    // add signals to Update Reg[OppRSAddr] to store temp2
+                    game_fsm.d = OppAttackStates.CONTINUE
+                
+                OppAttackStates.BRANCH_ATTACKEDHAND3:
+                regfile_ra2 = d9 // branch temp1
+                if(regfile_rd2[0]){
+                        game_fsm.d = OppAttackStates.BRANCH_OPP_LA2
+                    }
+                else{
+                        game_fsm.d = OppAttackStates.BRANCH_OPP_RA2
+                    }
+                
+                OppAttackStates.BRANCH_OPP_LA2: 
+                regfile_ra2 = OPPLAADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = OppAttackStates.UPDATE_OPP_RA
+                    }
+                else{
+                    game_fsm.d = OppAttackStates.END
+                    }
+                
+                OppAttackStates.UPDATE_OPP_RA:
+                    // add signals to Update Reg[OppRAAddr] to be 0
+                    game_fsm.d = OppAttackStates.UPDATE_OPP_RS
+                
+                OppAttackStates.UPDATE_OPP_RS:
+                    // add signals to Update Reg[OppRSAddr] to store temp 2
+                    game_fsm.d = OppAttackStates.CONTINUE
+                
+                OppAttackStates.BRANCH_OPP_RA2: 
+                regfile_ra2 = OPPRAADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = OppAttackStates.UPDATE_OPP_LA
+                    }
+                else{
+                    game_fsm.d = OppAttackStates.END
+                    }
+                
+                OppAttackStates.UPDATE_OPP_LA:
+                    // add signals to Update Reg[OppLAAddr] to be 0
+                    game_fsm.d = OppAttackStates.UPDATE_OPP_LS
+                
+                OppAttackStates.UPDATE_OPP_LS:
+                    // add signals to Update Reg[OppLSAddr] to store temp 2
+                    game_fsm.d = OppAttackStates.CONTINUE
+                
+                OppAttackStates.ILLEGAL:
+                    // add signals to change illegal to 1
+                    game_fsm.d = OppAttackStates.ILLEGAL 
+                
+                OppAttackStates.CONTINUE:
+                    game_fsm.d = OppAttackStates.IDLE // placeholder - should go back to idle
+                
+                OppAttackStates.END:
+                    end = b1
+                    game_fsm.d = OppAttackStates.END 
+                
+                
+                    
+            }
+        }
+        
+    }
+}

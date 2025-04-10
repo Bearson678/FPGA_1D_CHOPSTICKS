@@ -1,0 +1,16 @@
+module split  #(
+    
+OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
+    OWNRSADDR ~ 1 : OWNRSADDR == 1 || OWNRSADDR == 3,
+    OWNLAADDR ~ 4 : OWNLAADDR == 4 || OWNLAADDR == 6, 
+    OWNRAADDR ~ 5 : OWNRAADDR == 5 || OWNRAADDR == 7
+
+)(
+    input clk,  // clock
+    input rst,  // reset
+    output end
+) {
+    always {
+        end = 0
+    }
+}

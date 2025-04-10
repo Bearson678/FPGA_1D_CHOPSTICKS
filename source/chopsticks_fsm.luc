@@ -1,6 +1,6 @@
 // barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
 // This is the main file you will be editing for testing FSM modules
-module split_fsm (
+module chopsticks_fsm (
     input clk,  // clock
     input rst,  // reset
     input decrease_timer,
@@ -21,53 +21,53 @@ module split_fsm (
     output regfile_ra2[4],
     output regfile_we,
     output debug[4]
+
 ) {
     //use this to list the states you are testing for your module
-    enum SplitStates{
-        //IMPLEMENTING CHECK IF SPLIT IS LEGAL MODULE
-        START,
-        BRANCHPLAYER,
-        // where the split module starts
+    opp_attack opp_attack_p1(#OWNLSADDR(0), #OWNRSADDR(1), #OWNLAADDR(4), #OWNRAADDR(5), #OPPLSADDR(2), 
+        #OPPRSADDR(3), #OPPLAADDR(6), #OPPRAADDR(7), .clk(clk), .rst(rst), .regfile_rd2(regfile_rd2))
+    opp_attack opp_attack_p2(#OWNLSADDR(2), #OWNRSADDR(3), #OWNLAADDR(6), #OWNRAADDR(7), #OPPLSADDR(0), 
+        #OPPRSADDR(1), #OPPLAADDR(4), #OPPRAADDR(5), .clk(clk), .rst(rst), .regfile_rd2(regfile_rd2))
+    
+    enum MainStates{
+        //IMPLEMENTING THE TIMER MODULE
+        IDLE, 
+      
+        OPTION_SELECT, 
         
-        // player 1 turn
-        BRANCHP1LAVAIL,
-        EVALUATEHANDCOUNT1,
-        UPDATET2P1LS,
-        EVALUATEHANDCOUNT2,
+        // attack others
+        SELECT_OPP_HAND,
+        SELECT_OWN_HAND,
+        CALCULATE_ATTACK_OTHERS,
         
-        BRANCHP1RAVAIL,
-        EVALUATEHANDCOUNT3,
-        UPDATET2P1RS,
         
-        BRANCHNOHANDS1,
-        CHECKHANDSCORE1,
-        BRANCHVALIDHANDS1,
+        // attack self
+        SELECT_TO_HIT,
+        CALCULATE_ATTACK_SELF,
         
-        // player 2 turn
-        BRANCHP2LAVAIL,
-        EVALUATEHANDCOUNT4,
-        UPDATET2P2LS,
-        EVALUATEHANDCOUNT5,
+        // split
+        SPLIT,
         
-        BRANCHP2RAVAIL,
-        EVALUATEHANDCOUNT6,
-        UPDATET2P2RS,
+        CURR_WIN,
         
-        BRANCHNOHANDS2,
-        CHECKHANDSCORE2,
-        BRANCHVALIDHANDS2,
+        CHECK_ILLEGAL,
         
-        // to connect to next step
-        P1SPLITVALID,
-        P2SPLITVALID,
-        INVALID
-       
+        OPP_WIN, 
+        
+        
+        CONTINUE, // to reset all 
+        
+        TURN_SELECT,
+        
+        BLACKOUT
+        
+    
     }
     
     // stores the states in a dff
     .clk(clk){
         .rst(rst){
-    dff game_fsm[$width(SplitStates)](#INIT(SplitStates.START))
+    dff game_fsm[$width(MainStates)](#INIT(MainStates.IDLE))
         }
     }
     always {
@@ -76,223 +76,168 @@ module split_fsm (
         asel = 0
         bsel = 0
         wdsel = 0
-        regfile_wa = d9
+        regfile_wa = 0
         regfile_we = 0
         regfile_ra1 = d0
         regfile_ra2 = d0
         debug = b0000
+        opp_attack_p1.start_oppatk = b0
+        opp_attack_p2.start_oppatk = b0
+       
         
         game_fsm.d = game_fsm.q
         if(rst){
-            game_fsm.d = SplitStates.START
+            game_fsm.d = MainStates.IDLE
         }
         else{
             //this is where you start coding out your states
-            case(game_fsm.q){
-                SplitStates.START:
-                    if(p1split){
-                        game_fsm.d = SplitStates.BRANCHPLAYER
+              case(game_fsm.q){
+                MainStates.IDLE:
+                if(p1r_button){ // TO CHANGE TO START BUTTON
+                                         
+                game_fsm.d = MainStates.OPTION_SELECT // to be changed
+                    }
+                
+                MainStates.OPTION_SELECT: 
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
                         }
-                SplitStates.BRANCHPLAYER:
-                    regfile_ra2 = d13 //checks R13 currplayer
-                    if(regfile_rd2[0]){
-                        game_fsm.d = SplitStates.BRANCHP2LAVAIL
+                    else if (p2r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p2split){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    
                     }
+                else { // player 1 turn
+                    if (p1l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p1r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p1split){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    } 
+                     
+                
+                
+                
+                MainStates.SELECT_OPP_HAND: // attack opp - use separate module to determine branch + update temp1 if needed
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p2r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }                  
+                    }
+                    
+                else { // player 1 turn
+                    if (p1l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p1r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    }
+                
+                MainStates.SELECT_OWN_HAND: // attack opp - use separate module to determine branch + update temp2 if needed
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p2r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }                  
+                    }
+                    
+                else { // player 1 turn
+                    if (p1l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p1r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    }
+                
+                MainStates.CALCULATE_ATTACK_OTHERS:
+                // use seperate module to check validity + update hand values
+                
+                regfile_ra2 = d13
+                if (regfile_rd2[0]){ // player 2 turn
+                    opp_attack_p2.start_oppatk = b1
+                    if (opp_attack_p2.end){
+                        game_fsm.d = MainStates.CURR_WIN
+                        }
                     else{
-                        game_fsm.d = SplitStates.BRANCHP1LAVAIL
+                        game_fsm.d = MainStates.CHECK_ILLEGAL
+                        }
+                    }
+                    
+                else {
+                        opp_attack_p1.start_oppatk = b1
+                    if (opp_attack_p1.end){
+                        game_fsm.d = MainStates.CURR_WIN
+                        }
+                    else{
+                        game_fsm.d = MainStates.CHECK_ILLEGAL
+                        }  
+                    
                     }
                 
-                // P1 turn
-                SplitStates.BRANCHP1LAVAIL: // check availability of P1 left hand
-                regfile_ra2 = d4
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT1
+               
+                    game_fsm.d = MainStates.CALCULATE_ATTACK_OTHERS // placeholder
+                
+                MainStates.SELECT_TO_HIT: // attack self - use separate module to determine branch + update temp1 if needed
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p2r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }                  
                     }
-                else{
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT2
+                    
+                else { // player 1 turn
+                    if (p1l_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
+                    else if (p1r_button){
+                            game_fsm.d = MainStates.OPTION_SELECT // placeholder - player 1
+                        }
                     }
                 
-                SplitStates.EVALUATEHANDCOUNT1: // indicate that p1left exists
-                    // implement signals
-                    alufn = b011100 //"B"
-                    bsel = b10
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P1LS
-                
-                SplitStates.UPDATET2P1LS: // indicate number of fingers on p1left if the hand still has fingers
-                    alufn = b011010 //"A"
-                    asel = b00
-                    regfile_ra1 = b0000
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    game_fsm.d = SplitStates.BRANCHP1RAVAIL
-                
-                SplitStates.EVALUATEHANDCOUNT2: // indicate that no hands with fingers have been found yet
-                    // implement signals
-                    alufn = b011100 //"B"
-                    bsel = b01
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHP1RAVAIL
-                
-                SplitStates.BRANCHP1RAVAIL: // check availability of P1 Right hand
-                regfile_ra2 = d5
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT3
-                    }
-                else{
-                    game_fsm.d = SplitStates.BRANCHNOHANDS1
-                    } 
-                
-                SplitStates.EVALUATEHANDCOUNT3: // indicate if there is more/less than 1 hand
-                    alufn = b000000 //"XOR" (placeholder)
-                    asel = b00
-                    bsel = b10
-                    regfile_ra1 = b1001
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P1RS
-                
-                SplitStates.UPDATET2P1RS: // indicate number of fingers on p1right if the hand still has fingers
-                    alufn = b011010 //"A"
-                    asel = b00
-                    regfile_ra1 = b0001
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHNOHANDS1
+                MainStates.CALCULATE_ATTACK_SELF:
+                // use seperate module to check validity + update hand values
+                    game_fsm.d = MainStates.CALCULATE_ATTACK_SELF // placeholder
+                  
+                MainStates.SPLIT:
+                    // use seperate module to check validity + update hand values 
+                    game_fsm.d = MainStates.SPLIT // placeholder
                 
                     
-                SplitStates.BRANCHNOHANDS1: // check if player has 1 hand
-                regfile_ra2 = d9
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.CHECKHANDSCORE1
-                    }
-                else{
-                    game_fsm.d = SplitStates.INVALID
-                    } 
+                MainStates.CONTINUE:
+                    // module to reset temps
+                    game_fsm.d = MainStates.TURN_SELECT
                 
-                SplitStates.CHECKHANDSCORE1: // check if hand has less than or equal to 1 finger
-                    alufn = b000000 //"CMPLE" (placeholder)            
-                    asel = b00
-                    bsel = b10
-                    regfile_ra1 = b1010
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHVALIDHANDS1
+                MainStates.TURN_SELECT:
+                    // module to swap all addresses and currentplayer
+                    // gotta figure out parameters here
+                    game_fsm.d = MainStates.OPTION_SELECT
+                                              
                 
-                SplitStates.BRANCHVALIDHANDS1: // branch according to previous state
-                regfile_ra2 = d10
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.INVALID
-                    }
-                else{
-                    game_fsm.d = SplitStates.P1SPLITVALID
-                    }
-                
-                // P2 turn
-                
-                SplitStates.BRANCHP2LAVAIL: // check availability of P2 left hand
-                regfile_ra2 = d6
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT4
-                    }
-                else{
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT5
-                    }
-                
-                SplitStates.EVALUATEHANDCOUNT4: // indicate that p2left exists
-                    // implement signals
-                    alufn = b011100 //"B"
-                    bsel = b10
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P2LS
-                
-                SplitStates.UPDATET2P2LS: // indicate number of fingers on p2left if the hand still has fingers
-                    alufn = b011010 //"A"
-                    asel = b00
-                    regfile_ra1 = b0010
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    game_fsm.d = SplitStates.BRANCHP2RAVAIL
-                
-                SplitStates.EVALUATEHANDCOUNT5: // indicate that no hands with fingers have been found yet
-                    // implement signals
-                    alufn = b011100 //"B"
-                    bsel = b01
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHP2RAVAIL
-                
-                SplitStates.BRANCHP2RAVAIL: // check availability of P1 Right hand
-                regfile_ra2 = d7
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.EVALUATEHANDCOUNT6
-                    }
-                else{
-                    game_fsm.d = SplitStates.BRANCHNOHANDS2
-                    } 
-                
-                SplitStates.EVALUATEHANDCOUNT6: // indicate if there is more/less than 1 hand
-                    alufn = b000000 //"XOR" (placeholder)
-                    asel = b00
-                    bsel = b10
-                    regfile_ra1 = b1001
-                    regfile_we = b1
-                    regfile_wa = b1001
-                    wdsel = b00
-                    game_fsm.d = SplitStates.UPDATET2P2RS
-                
-                SplitStates.UPDATET2P2RS: // indicate number of fingers on p1right if the hand still has fingers
-                    alufn = b011010 //"A"
-                    asel = b00
-                    regfile_ra1 = b0011
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHNOHANDS2
-                
-                    
-                SplitStates.BRANCHNOHANDS2: // check if player has 1 hand
-                regfile_ra2 = d9
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.CHECKHANDSCORE2
-                    }
-                else{
-                    game_fsm.d = SplitStates.INVALID
-                    } 
-                
-                SplitStates.CHECKHANDSCORE2: // check if hand has less than or equal to 1 finger
-                    alufn = b000000 //"CMPLE" (placeholder)            
-                    asel = b00
-                    bsel = b10
-                    regfile_ra1 = b1010
-                    regfile_we = b1
-                    regfile_wa = b1010
-                    wdsel = b00
-                    game_fsm.d = SplitStates.BRANCHVALIDHANDS2
-                
-                SplitStates.BRANCHVALIDHANDS2: // branch according to previous state
-                regfile_ra2 = d10
-                if(regfile_rd2[0]){
-                    game_fsm.d = SplitStates.INVALID
-                    }
-                else{
-                    game_fsm.d = SplitStates.P2SPLITVALID
-                    }
-                                                
-            }
+            
         }
         
     }
+}
 }
 
 

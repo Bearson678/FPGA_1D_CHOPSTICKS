@@ -6,11 +6,13 @@ module alu_expandedwithmuxes (
     input wdsel[2],
     input alufn_Signal[6],
     output alu_output[32]
+
 ) {
     
     alu alu_chopsticks
     always {
         alu_chopsticks.alufn = alufn_Signal
+
         //using case switch statements as the muxes for alu
         case(asel){
             b00 : alu_chopsticks.a = rd1

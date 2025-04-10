@@ -27,8 +27,8 @@ module chopsticks_datapath #(
     alu_expandedwithmuxes game_alu
     
     .clk(clk){
-        // Using of counter module to count down, 
-        counter game_timer_clock(#SIZE(1),#DIV(SLOW_CLOCK_DIV),#UP(1),.rst(rst))
+        // Using of counter module to count up, 
+        counter game_timer_clock(#SIZE(1),#DIV(SLOW_CLOCK_DIV),.rst(rst))
         edge_detector edge_detector_game_timer(#RISE(1),#FALL(0),.in(game_timer_clock.value))
         
         //instantiating the FSM and connecting the inputs of the FSM to inputs of datapath
