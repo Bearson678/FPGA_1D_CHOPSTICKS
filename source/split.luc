@@ -8,9 +8,50 @@ OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
 )(
     input clk,  // clock
     input rst,  // reset
-    output end
+    input regfile_rd2[32],
+    input start_split[1],
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
 ) {
+    enum SplitStates{
+        //IMPLEMENTING THE TIMER MODULE
+        IDLE,
+        
+        ILLEGAL,
+        
+        CONTINUE
+    }
+    
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(SplitStates)](#INIT(SplitStates.IDLE))
+        }
+    }
+    
     always {
-        end = 0
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        game_fsm.d = game_fsm.q
+        
+        if(rst){
+            game_fsm.d = SplitStates.IDLE
+        }
+        else{
+            
+        }
     }
 }
