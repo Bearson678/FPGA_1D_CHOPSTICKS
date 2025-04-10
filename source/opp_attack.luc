@@ -124,6 +124,12 @@ module opp_attack #(
                 
                 OppAttackStates.STORE_OWN_LS:
                     // control signals to Update Temp2 to store Reg[OwnLSAddr]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = OWNLSADDR 
+                    regfile_we = b1
+                    regfile_wa = d10 // temp 2
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND
                 
                 OppAttackStates.BRANCH_OWN_RA:
@@ -137,6 +143,12 @@ module opp_attack #(
                 
                 OppAttackStates.STORE_OWN_RS:
                     // control signals to Update Temp2 to store Reg[OwnRSAddr]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = OWNRSADDR 
+                    regfile_we = b1
+                    regfile_wa = d10 // temp 2
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.BRANCH_ATTACKEDHAND
                 
                 OppAttackStates.BRANCH_ATTACKEDHAND:
@@ -172,10 +184,11 @@ module opp_attack #(
                 
                 OppAttackStates.ADD_OPP_RS:
                     // add signals for Add Reg[OppRSAddr] to Temp2
+                    
                     game_fsm.d = OppAttackStates.CHECK_TOTAL
                 
                 OppAttackStates.CHECK_TOTAL:
-                    // add signals for 5 <= Temp2 -> Temp3
+                    // signals for 5 <= Temp2 -> Temp3
                     game_fsm.d = OppAttackStates.BRANCH_TOTAL
                 
                 OppAttackStates.BRANCH_TOTAL:
@@ -197,11 +210,23 @@ module opp_attack #(
                     }    
                 
                 OppAttackStates.UPDATE_OPPLS:
-                    // add signals to Update Reg[OppLSAddr] to store temp2
+                    // Update Reg[OppLSAddr] to store temp2
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = OPPLSADDR
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.CONTINUE
                              
                 OppAttackStates.UPDATE_OPPRS:
-                    // add signals to Update Reg[OppRSAddr] to store temp2
+                    // Update Reg[OppRSAddr] to store temp2
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = OPPRSADDR
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.CONTINUE
                 
                 OppAttackStates.BRANCH_ATTACKEDHAND3:
@@ -223,11 +248,22 @@ module opp_attack #(
                     }
                 
                 OppAttackStates.UPDATE_OPP_RA:
-                    // add signals to Update Reg[OppRAAddr] to be 0
+                    // Update Reg[OppRAAddr] to be 0
+                    alufn = b011100 //"B"
+                    bsel = b01
+                    regfile_we = b1
+                    regfile_wa = OPPRAADDR
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.UPDATE_OPP_RS
                 
                 OppAttackStates.UPDATE_OPP_RS:
-                    // add signals to Update Reg[OppRSAddr] to store temp 2
+                    // signals to Update Reg[OppRSAddr] to store temp 2
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = OPPRSADDR 
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.CONTINUE
                 
                 OppAttackStates.BRANCH_OPP_RA2: 
@@ -240,19 +276,35 @@ module opp_attack #(
                     }
                 
                 OppAttackStates.UPDATE_OPP_LA:
-                    // add signals to Update Reg[OppLAAddr] to be 0
+                    // Update Reg[OppLAAddr] to be 0
+                    alufn = b011100 //"B"
+                    bsel = b01
+                    regfile_we = b1
+                    regfile_wa = OPPLAADDR
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.UPDATE_OPP_LS
                 
                 OppAttackStates.UPDATE_OPP_LS:
-                    // add signals to Update Reg[OppLSAddr] to store temp 2
+                    // Update Reg[OppLSAddr] to store temp 2
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = OPPLSADDR 
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.CONTINUE
                 
                 OppAttackStates.ILLEGAL:
-                    // add signals to change illegal to 1
+                    // change illegal to 1
+                    alufn = b011100 //"B"
+                    bsel = b10
+                    regfile_we = b1
+                    regfile_wa = d12 // illegal
+                    wdsel = b00
                     game_fsm.d = OppAttackStates.ILLEGAL 
                 
                 OppAttackStates.CONTINUE:
-                    game_fsm.d = OppAttackStates.IDLE // placeholder - should go back to idle
+                    game_fsm.d = OppAttackStates.IDLE 
                 
                 OppAttackStates.END:
                     end = b1

@@ -62,7 +62,6 @@ module chopsticks_fsm (
         
         OPP_WIN, 
         
-        
         CONTINUE, // to reset all 
         
         TURN_SELECT,

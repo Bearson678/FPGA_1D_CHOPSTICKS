@@ -1,6 +1,6 @@
 module split  #(
     
-OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
+    OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
     OWNRSADDR ~ 1 : OWNRSADDR == 1 || OWNRSADDR == 3,
     OWNLAADDR ~ 4 : OWNLAADDR == 4 || OWNLAADDR == 6, 
     OWNRAADDR ~ 5 : OWNRAADDR == 5 || OWNRAADDR == 7
@@ -23,6 +23,21 @@ OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
     enum SplitStates{
         //IMPLEMENTING THE TIMER MODULE
         IDLE,
+        XOR_AVAIL,
+        
+        BRANCH_AVAIL,
+        
+        BRANCH_OWNLA,
+        BRANCH_OWNRS,
+        BRANCH_OWNLS,
+        
+        DIV_OWNRS,
+        UPDATE_OWNLS,
+        UPDATE_OWNLA,
+        
+        DIV_OWNLS,
+        UPDATE_OWNRS,
+        UPDATE_OWNRA,
         
         ILLEGAL,
         
@@ -51,7 +66,122 @@ OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
             game_fsm.d = SplitStates.IDLE
         }
         else{
+            case(game_fsm.q){
+            SplitStates.IDLE:
+                if(start_split){
+                        game_fsm.d = SplitStates.XOR_AVAIL
+                    }
+                
+            SplitStates.XOR_AVAIL:
+                alufn = b010110 //"XOR" 
+                asel = b00
+                bsel = b00
+                regfile_ra1 = OWNLAADDR
+                regfile_ra2 = OWNRAADDR
+                regfile_we = b1
+                regfile_wa = d9
+                wdsel = b00
+                game_fsm.d = SplitStates.BRANCH_AVAIL
+                
+            SplitStates.BRANCH_AVAIL:
+                regfile_ra2 = d9
+                if(regfile_rd2[0]){
+                    game_fsm.d = SplitStates.BRANCH_OWNLA
+                    }
+                else{
+                    game_fsm.d = SplitStates.ILLEGAL   
+                    }
+                
+            SplitStates.BRANCH_OWNLA:
+                regfile_ra2 = OWNLAADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = SplitStates.BRANCH_OWNLS
+                    }
+                else{
+                    game_fsm.d = SplitStates.BRANCH_OWNRS   
+                    }
+                
+            SplitStates.BRANCH_OWNRS:
+                regfile_ra2 = OWNRSADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = SplitStates.DIV_OWNRS
+                    }
+                else{
+                    game_fsm.d = SplitStates.ILLEGAL   
+                    }
+                
+            SplitStates.DIV_OWNRS:
+                // add signals to DIV Reg[OwnRSAddr] by 2
+                game_fsm.d = SplitStates.UPDATE_OWNLS // placeholder   
+                
+            SplitStates.UPDATE_OWNLS:
+                // update Reg[OwnLSAddr] to be same as Reg[OwnRSAddr]
+                alufn = b011010 //"A"
+                asel = b00
+                regfile_ra1 = OWNRSADDR 
+                regfile_we = b1
+                regfile_wa = OWNLSADDR
+                wdsel = b00
+                game_fsm.d = SplitStates.UPDATE_OWNLA // placeholder
+                
+            SplitStates.UPDATE_OWNLA:
+                // UPDATE Reg[OwnLAAddr] to be 1    
+                alufn = b011100 //"B"
+                bsel = b10
+                regfile_we = b1
+                regfile_wa = OWNLAADDR
+                wdsel = b00
+                game_fsm.d = SplitStates.CONTINUE 
+                
+            SplitStates.BRANCH_OWNLS:
+                regfile_ra2 = OWNLSADDR
+                if(regfile_rd2[0]){
+                    game_fsm.d = SplitStates.DIV_OWNLS
+                    }
+                else{
+                    game_fsm.d = SplitStates.ILLEGAL   
+                    }
+                
+            SplitStates.DIV_OWNLS:
+                // add signals to DIV Reg[OwnLSAddr] by 2
+                game_fsm.d = SplitStates.UPDATE_OWNRS // placeholder  
+                
+            SplitStates.UPDATE_OWNRS:
+                // update Reg[OwnRSAddr] to be same as Reg[OwnLSAddr]
+                alufn = b011010 //"A"
+                asel = b00
+                regfile_ra1 = OWNLSADDR 
+                regfile_we = b1
+                regfile_wa = OWNRSADDR
+                wdsel = b00
+                game_fsm.d = SplitStates.UPDATE_OWNRA 
+                
+            SplitStates.UPDATE_OWNRA:
+                // UPDATE Reg[OwnRAAddr] to be 1
+                alufn = b011100 //"B"
+                bsel = b10
+                regfile_we = b1
+                regfile_wa = OWNRAADDR
+                wdsel = b00
+                game_fsm.d = SplitStates.CONTINUE
+                
+            SplitStates.ILLEGAL:
+                // change illegal to 1
+                alufn = b011100 //"B"
+                bsel = b10
+                regfile_we = b1
+                regfile_wa = d12 // illegal
+                wdsel = b00
+                game_fsm.d = SplitStates.ILLEGAL
+                
+            SplitStates.CONTINUE:
+                game_fsm.d = SplitStates.IDLE
+               
             
+                
+               
+                        
+            }
         }
     }
 }

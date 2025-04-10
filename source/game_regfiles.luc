@@ -34,7 +34,7 @@ module game_regfiles (
             dff temp1[32](#INIT(0))
             dff temp2[32](#INIT(0))
             dff temp3[32](#INIT(0))
-            dff illegal[1](#INIT(0))
+            dff illegal[32](#INIT(0))
             dff current_player[32](#INIT(0))
             dff timerLED_out[32](#INIT(0))
         }

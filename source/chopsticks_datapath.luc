@@ -33,7 +33,7 @@ module chopsticks_datapath #(
         
         //instantiating the FSM and connecting the inputs of the FSM to inputs of datapath
         chopsticks_fsm chopsticks_fsm(
-            .p1l_button(p1l_button),
+            .p1l_button(p1l_button), 
             .p1r_button(p1r_button),
             .p2l_button(p2l_button),
             .p2r_button(p2r_button),

@@ -17,8 +17,7 @@ module self_attack #(
     output regfile_ra1[4],
     output regfile_ra2[4],
     output regfile_we,
-    output debug[4],
-    output end
+    output debug[4]
 ) {
     enum SelfAttackStates{
         //IMPLEMENTING THE TIMER MODULE
@@ -47,7 +46,6 @@ module self_attack #(
         regfile_ra1 = d0
         regfile_ra2 = d0
         debug = b0000
-        end = 0
         game_fsm.d = game_fsm.q
         
         if(rst){
