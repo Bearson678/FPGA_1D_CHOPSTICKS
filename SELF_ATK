@@ -1,0 +1,254 @@
+module self_attack #(
+    
+    OWNLSADDR ~ 0 : OWNLSADDR == 0 || OWNLSADDR == 2,
+    OWNRSADDR ~ 1 : OWNRSADDR == 1 || OWNRSADDR == 3,
+    OWNLAADDR ~ 4 : OWNLAADDR == 4 || OWNLAADDR == 6, 
+    OWNRAADDR ~ 5 : OWNRAADDR == 5 || OWNRAADDR == 7
+)(
+    input clk,  // clock
+    input rst,  // reset
+    input regfile_rd2[32],
+    input start_selfatk[1],
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4]
+) {
+    enum SelfAttackStates{
+        //IMPLEMENTING THE TIMER MODULE
+        IDLE,
+        BRANCH_ATTACKINGHAND, 
+        
+        BRANCH_OWN_LA,
+        BRANCH_OWN_RA,
+        BRANCH_ATTACKEDHAND,
+        ATK_OWN_RA,
+        ATK_OWN_LA,
+        CHECK_LA,
+        CHECK_RA,
+        BRANCH_CHECK_RS,
+        BRANCH_CHECK_LS,
+        UPDATE_LA,
+        UPDATE_RA,
+        
+        ILLEGAL,
+        CONTINUE
+                
+    }
+    
+    // stores the states in a dff
+    .clk(clk){
+        .rst(rst){
+    dff game_fsm[$width(SelfAttackStates)](#INIT(SelfAttackStates.IDLE))
+        }
+    }
+    always {
+        //default control signal setings
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = b0000
+        game_fsm.d = game_fsm.q
+        
+        if(rst){
+            game_fsm.d = SelfAttackStates.IDLE
+        }
+        else{
+            case(game_fsm.q){
+                
+                SelfAttackStates.IDLE:
+                if(start_selfatk){
+                        game_fsm.d = SelfAttackStates.BRANCH_ATTACKINGHAND
+                    }
+                
+                SelfAttackStates.BRANCH_ATTACKINGHAND:
+                regfile_ra2 = d9 // branch temp1
+                if(regfile_rd2[0]){
+                        game_fsm.d = SelfAttackStates.BRANCH_OWN_RA
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.BRANCH_OWN_LA
+                    }
+                
+                SelfAttackStates.BRANCH_OWN_LA:
+                    // checking whether own left hand is alive 
+                regfile_ra2 = OWNLAADDR 
+                if(regfile_rd2[0]){
+                        game_fsm.d = SelfAttackStates.BRANCH_ATTACKEDHAND
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.ILLEGAL
+                    }
+
+                
+                SelfAttackStates.BRANCH_OWN_RA:
+                    // checking whether own right hand is alive
+                regfile_ra2 = OWNRAADDR
+                if(regfile_rd2[0]){
+                        game_fsm.d = SelfAttackStates.BRANCH_ATTACKEDHAND
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.ILLEGAL
+                    }
+                
+                
+                SelfAttackStates.BRANCH_ATTACKEDHAND:
+                    // checking whether we attacking our own left or right hand
+                regfile_ra2 = d9 // branch based on temp1
+                if(regfile_rd2[0]){
+                // if temp 1 has a score of 1, we attack our right hand with our left hand
+                        game_fsm.d = SelfAttackStates.ATK_OWN_RA
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.ATK_OWN_LA
+                    }
+                
+                
+                SelfAttackStates.ATK_OWN_RA:
+                    // adding left hand score to right hand score 
+                    alufn = b000000 // ADD
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = OWNRSADDR
+                    regfile_ra1 = OWNRSADDR // shld be attacked hand
+                    regfile_ra2 = OWNLSADDR // should be attacking hand
+                    debug = b0001
+                    game_fsm.d = SelfAttackStates.CHECK_RA
+                
+                SelfAttackStates.ATK_OWN_LA:
+                    // adding left hand score to right hand score 
+                    alufn = b000000 // ADD
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = OWNLSADDR
+                    regfile_ra1 = OWNLSADDR // shld be attacked hand
+                    regfile_ra2 = OWNRSADDR // should be attacking hand
+                    debug = b0001
+                    game_fsm.d = SelfAttackStates.CHECK_LA
+                
+                SelfAttackStates.CHECK_RA:
+                    // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = b10 // provides a value of 5
+                        bsel = b00 
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = d9 // write to temp 1
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = OWNRSADDR // should be result of attacked hand  
+                        debug = b0011
+                    game_fsm.d = SelfAttackStates.BRANCH_CHECK_RS
+                
+                
+                SelfAttackStates.CHECK_LA:
+                    // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = b10 // provides a value of 5
+                        bsel = b00 
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = d9 // write to temp 1
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = OWNLSADDR // should be result of attacked hand  
+                        debug = b0011
+                    game_fsm.d = SelfAttackStates.BRANCH_CHECK_LS
+                
+                SelfAttackStates.BRANCH_CHECK_RS:
+                    regfile_ra2 = d9 // branch based on temp1
+                if(regfile_rd2[0]){
+                // if temp 1 has a score of 1, hand is dead
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = OWNRSADDR // write to right score
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = SelfAttackStates.UPDATE_RA
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.CONTINUE
+                    }
+                
+                
+                SelfAttackStates.BRANCH_CHECK_LS:
+                    regfile_ra2 = d9 // branch based on temp1
+                if(regfile_rd2[0]){
+                // if temp 1 has a score of 1, hand is dead
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = OWNLSADDR // write to LEFT score
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = SelfAttackStates.UPDATE_LA
+                    }
+                else{
+                        game_fsm.d = SelfAttackStates.CONTINUE
+                    }
+                
+                
+                SelfAttackStates.UPDATE_RA:
+                    // update avail to 0, goes to next state
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = OWNRAADDR // write to right avail
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = SelfAttackStates.CONTINUE
+                
+                
+                SelfAttackStates.UPDATE_LA:
+                    // update avail to 0, goes to next state
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = OWNLAADDR // write to LEFT avail
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = SelfAttackStates.CONTINUE
+                
+                
+                SelfAttackStates.ILLEGAL:
+                    // change illegal to 1
+                    alufn = b011100 //"B"
+                    bsel = b10
+                    regfile_we = b1
+                    regfile_wa = d12 // illegal
+                    wdsel = b00
+                    game_fsm.d = SelfAttackStates.ILLEGAL 
+                
+                SelfAttackStates.CONTINUE:
+                    game_fsm.d = SelfAttackStates.IDLE 
+                
+                    
+            }
+        }
+    }
+}
