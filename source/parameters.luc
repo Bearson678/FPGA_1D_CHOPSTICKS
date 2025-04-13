@@ -1,0 +1,48 @@
+module parameters #(
+
+)(
+    input current_player,
+    output ownlsaddr[4],
+    output ownrsaddr[4],
+    output ownlaaddr[4],
+    output ownraaddr[4],
+    output opplsaddr[4],
+    output opprsaddr[4],
+    output opplaaddr[4],
+    output oppraaddr[4]
+) {
+    always {
+        // default connections // player 1 values
+        ownlsaddr = d0
+        ownrsaddr = d0
+        ownlaaddr = d0
+        ownraaddr = d0
+        opplsaddr = d0
+        opprsaddr = d0
+        opplaaddr = d0
+        oppraaddr = d0
+        
+        if(current_player){ // player 2 turn
+            ownlsaddr = d2
+            ownrsaddr = d3
+            ownlaaddr = d6
+            ownraaddr = d7 
+            opplsaddr = d0
+            opprsaddr = d1
+            opplaaddr = d4
+            oppraaddr = d5
+         
+            
+        } 
+        else{ // player 1 turn
+            ownlsaddr = d0
+            ownrsaddr = d1
+            ownlaaddr = d4
+            ownraaddr = d5 
+            opplsaddr = d2
+            opprsaddr = d3
+            opplaaddr = d6
+            oppraaddr = d7
+        }
+    }
+}

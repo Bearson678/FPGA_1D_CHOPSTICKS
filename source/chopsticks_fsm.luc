@@ -1,0 +1,1300 @@
+// barebones of a fsm, if you are doing timer stuff feel free to edit the increase a bit, Im not sure what i should add to make it work :(
+// This is the main file you will be editing for testing FSM modules
+module chopsticks_fsm (
+    input clk,  // clock
+    input rst,  // reset
+    input slowclk,
+    
+    input regfile_rd2[32],
+    input p1l_button,
+    input p1r_button,
+    input p2r_button,
+    input p2l_button,
+    input blackoutrate,
+    input p1split,
+    input p2split,
+    input rng,
+    input start,
+    
+    output alufn[6],
+    output asel[2],
+    output bsel[2],
+    output wdsel[2],
+    output regfile_wa[4],
+    output regfile_ra1[4],
+    output regfile_ra2[4],
+    output regfile_we,
+    output debug[4],
+    output difficulty,
+    output pulse,
+    output start_led
+
+) {
+
+    parameters curr_turn_addr // module mapping curr player to player turn
+    
+    enum MainStates{
+        
+        // before game is started
+        MAIN_IDLE, 
+        MAIN_CHANGE_MODE, // not implemented yet
+        MAIN_BLACKOUT, // not implemented
+        
+        // start game
+        MAIN_RANDOMIZE_STARTP,
+        MAIN_OPTION_SELECT, 
+        
+        // attack others inputs
+        MAIN_SELECT_OPP_HAND,
+        MAIN_SELECT_OWN_HAND,
+        MAIN_CALCULATE_ATTACK_OTHERS, // BRIDGING STATE to attack others fsm part 
+        
+        
+        // ATTACK OTHERS states
+        ATKOPP_BRANCH_ATTACKINGHAND, 
+        
+        ATKOPP_BRANCH_OWN_LA,
+        ATKOPP_STORE_OWN_LS,
+        
+        ATKOPP_BRANCH_OWN_RA,
+        ATKOPP_STORE_OWN_RS,
+        
+        ATKOPP_BRANCH_ATTACKEDHAND,
+        
+        ATKOPP_BRANCH_OPP_LA,
+        ATKOPP_ADD_OPP_LS,
+        
+        ATKOPP_BRANCH_OPP_RA,
+        ATKOPP_ADD_OPP_RS,
+        
+        ATKOPP_CHECK_TOTAL,
+        
+        ATKOPP_BRANCH_TOTAL,
+        
+        ATKOPP_BRANCH_ATTACKEDHAND2,
+        ATKOPP_UPDATE_OPPLS,
+        ATKOPP_UPDATE_OPPRS,
+        
+        ATKOPP_BRANCH_ATTACKEDHAND3,
+        
+        ATKOPP_BRANCH_OPP_RA2,
+        ATKOPP_UPDATE_OPP_LA,
+        ATKOPP_UPDATE_OPP_LS,
+        
+        ATKOPP_BRANCH_OPP_LA2,
+        ATKOPP_UPDATE_OPP_RA,
+        ATKOPP_UPDATE_OPP_RS,
+        
+        
+        // attack self inputs
+        MAIN_SELECT_TO_HIT,
+        MAIN_CALCULATE_ATTACK_SELF,
+        
+        // ATTACK SELF states 
+        
+        SELFATK_BRANCH_OWN_LA,
+        SELFATK_BRANCH_OWN_RA,
+        
+        SELFATK_BRANCH_ATTACKEDHAND,
+        
+        SELFATK_ATKRA,
+        SELFATK_CHECK_LA,
+        SELFATK_BRANCH_CHECK_RS, // + update score
+        SELFATK_UPDATE_LA,
+        
+        SELFATK_ATKLA,
+        SELFATK_CHECK_RA,
+        SELFATK_BRANCH_CHECK_LS, // + update score
+        SELFATK_UPDATE_RA,
+
+        
+        // split
+        MAIN_SPLIT, // BRIDGING STATE to splitting portion of fsm
+        
+        // SPLIT states
+        SPLIT_XOR_AVAIL,
+        
+        SPLIT_BRANCH_AVAIL,
+        
+        SPLIT_BRANCH_OWNLA,
+        SPLIT_CHECK_OWNRS,
+        SPLIT_BRANCH_OWNRS,
+        SPLIT_CHECK_OWNLS,
+        SPLIT_BRANCH_OWNLS,
+        
+        SPLIT_DIV_OWNRS,
+        SPLIT_UPDATE_OWNLS,
+        SPLIT_UPDATE_OWNLA,
+        
+        SPLIT_DIV_OWNLS,
+        SPLIT_UPDATE_OWNRS,
+        SPLIT_UPDATE_OWNRA,
+        
+        // update regfile to reflect illegal move
+        MAIN_ILLEGAL, // MAY NOT BE NEEDED
+        
+        // check for end game
+        MAIN_CHECK_ILLEGAL,  // MAY NOT BE NEEDED - curr not implemented
+        
+        // continue game
+        MAIN_CONTINUE, // BRIDGING STATE from if game continues
+        MAIN_UPDATE_ADDR, // update addresses based on new curr_player
+        MAIN_TURN_SELECT, // swap players
+        
+        // end game
+        MAIN_CURR_WIN,
+        MAIN_OPP_WIN, 
+        
+        // curr player wins
+        END_ON_CURRL,
+        END_ON_CURRR,
+        END_ON_CURRAL,
+        END_ON_CURRAR,
+        END_OFF_OPPL,
+        END_OFF_OPPR,
+        END_OFF_OPPAL,
+        END_OFF_OPPAR,
+        
+        // curr player wins
+        END_OFF_CURRL,
+        END_OFF_CURRR,
+        END_OFF_CURRAL,
+        END_OFF_CURRAR,
+        END_ON_OPPL,
+        END_ON_OPPR,
+        END_ON_OPPAL,
+        END_ON_OPPAR,
+    
+        MAIN_GAME_END
+   
+    }
+    sig slowclock
+    
+    
+    .clk(clk){
+        edge_detector slow_clock_edge(#RISE(1),#FALL(0))
+        .rst(rst){
+            dff game_fsm[$width(MainStates)](#INIT(MainStates.MAIN_IDLE))
+            dff slow_clock_enable(#INIT(0))
+            
+            // for start button led
+            dff start_sig(#INIT(1))
+            
+            // for blackout mode
+            dff diff(#INIT(0))
+            dff pulse_sig(#INIT(0))
+                    
+            // store curr player in a dff - temp until i figure out how to remove it
+            dff player_turn(#INIT(0))
+                    
+            // store addresses of current hands in dffs
+            dff ownlsaddr[4](#INIT(d0))
+            dff ownrsaddr[4](#INIT(d1))
+            dff ownlaaddr[4](#INIT(d4))
+            dff ownraaddr[4](#INIT(d5))
+            dff opplsaddr[4](#INIT(d2))
+            dff opprsaddr[4](#INIT(d3))
+            dff opplaaddr[4](#INIT(d6))
+            dff oppraaddr[4](#INIT(d7))
+        }
+    }
+    always {
+        
+
+        // assign addresses
+        ownlsaddr.d = ownlsaddr.q
+        ownrsaddr.d = ownrsaddr.q
+        ownlaaddr.d = ownlaaddr.q
+        ownraaddr.d = ownraaddr.q
+        opplsaddr.d = opplsaddr.q
+        opprsaddr.d = opprsaddr.q
+        opplaaddr.d = opplaaddr.q
+        oppraaddr.d = oppraaddr.q
+        diff.d = diff.q
+        pulse_sig.d = pulse_sig.q
+        start_sig.d = start_sig.q
+        
+        player_turn.d = player_turn.q
+        
+        curr_turn_addr.current_player = player_turn.q // current player turn
+        
+        //default control signal setings
+        slowclock = slowclk
+        alufn = 0
+        asel = 0
+        bsel = 0
+        wdsel = 0
+        regfile_wa = 0
+        regfile_we = 0
+        regfile_ra1 = d0
+        regfile_ra2 = d0
+        debug = regfile_rd2[3:0]
+        difficulty = diff.q
+        pulse = pulse_sig.q
+        start_led = start_sig.q
+        
+        
+        slow_clock_edge.in = slowclock // Edge detector takes in the slow_clock signal at rising edge only
+        slow_clock_enable.d = slow_clock_enable.q
+        
+        case(slow_clock_enable.q){
+           0:
+               slow_clock_edge.in = 0 // always don't increment or decrement if "no edge signal"
+           1:
+               slow_clock_edge.in = slowclock // If "yes edge signal" , output wtv we have as the slow_clock signal
+           default:
+               slow_clock_edge.in = 0 // default the edge signal to 0 first
+         }
+        
+        game_fsm.d = game_fsm.q
+        if(rst){
+            game_fsm.d = MainStates.MAIN_IDLE
+        }
+        else{
+            //this is where you start coding out your states
+              case(game_fsm.q){
+                MainStates.MAIN_IDLE:
+                if(start){ // map to another hand button for testing if it does not work                                        
+                    start_sig.d = 0 // turn light on start button off
+                    game_fsm.d = MainStates.MAIN_RANDOMIZE_STARTP 
+                    }
+                    
+                if(~slow_clock_enable.q){
+                    slow_clock_enable.d = 1 // start slow clock if it isn't
+                    }
+                    
+                if(blackoutrate && ~diff.q){
+                    diff.d = 1// change blackout mode 
+                    }
+                    
+                if(blackoutrate && diff.q){
+                    diff.d = 0// change blackout mode 
+                    }
+                
+                    
+                pulse_sig.d = 0
+                
+            
+                MainStates.MAIN_RANDOMIZE_STARTP: // randomize start player - try without first
+                    if(rng){ // player 2 starts
+                        alufn = b011100
+                        bsel = b10
+                        wdsel = 0
+                        regfile_wa = d13
+                        regfile_we = 1
+                        curr_turn_addr.current_player = 1
+                        player_turn.d = d1 // indicate that p2 turn 
+                            
+                        }
+                    else{ // player 1 starts
+                        alufn = b011100
+                        bsel = b01 // 1
+                        wdsel = 0
+                        regfile_wa = d13
+                        regfile_we = 1
+                        curr_turn_addr.current_player = 0
+                        player_turn.d = d0 // indicate that p1 turn
+                    }
+                    
+                    // set own addresses start player and odd to the other
+                    ownlsaddr.d = curr_turn_addr.ownlsaddr
+                    ownrsaddr.d = curr_turn_addr.ownrsaddr
+                    ownlaaddr.d = curr_turn_addr.ownlaaddr
+                    ownraaddr.d = curr_turn_addr.ownraaddr
+                    opplsaddr.d = curr_turn_addr.opplsaddr
+                    opprsaddr.d = curr_turn_addr.opprsaddr
+                    opplaaddr.d = curr_turn_addr.opplaaddr
+                    oppraaddr.d = curr_turn_addr.oppraaddr
+                                
+                    game_fsm.d = MainStates.MAIN_OPTION_SELECT
+                
+                MainStates.MAIN_OPTION_SELECT: 
+                pulse_sig.d = 0
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){ // attack other
+                            game_fsm.d = MainStates.MAIN_SELECT_OPP_HAND 
+                        }
+                    else if (p2r_button){ // attack self
+                            game_fsm.d = MainStates.MAIN_SELECT_TO_HIT 
+                        }
+                    else if (p2split){ // split
+                            game_fsm.d = MainStates.MAIN_SPLIT 
+                        }
+                    
+                    }
+                else { // player 1 turn
+                    if (p1l_button){ // attack other
+                            game_fsm.d = MainStates.MAIN_SELECT_OPP_HAND 
+                        }
+                    else if (p1r_button){ // attack self
+                            game_fsm.d = MainStates.MAIN_SELECT_TO_HIT 
+                        }
+                    else if (p1split){ // split
+                            game_fsm.d = MainStates.MAIN_SPLIT 
+                        }
+                    } 
+
+                // inputs after choosing to attack opponent
+                MainStates.MAIN_SELECT_OPP_HAND: // attack opp - select opp hand
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){ // attack opp right
+                            
+                            // store 1 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b10 // 1
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_SELECT_OWN_HAND 
+                        }
+                    else if (p2r_button){ // attack opp left
+                            
+                            // store 0 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b01 // 0
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_SELECT_OWN_HAND 
+                        }                  
+                    }
+                    
+                else { // player 1 turn
+                    if (p1l_button){ // attack opp right
+                            
+                            // store 1 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b10 // 1
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_SELECT_OWN_HAND 
+                        }
+                    else if (p1r_button){ // attack opp left
+                            
+                            // store 1 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b01 // 0
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_SELECT_OWN_HAND 
+                        }
+                    }
+                
+                MainStates.MAIN_SELECT_OWN_HAND: // attack opp - select own hand
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){ // attack with left
+                            
+                            // store 0 to temp 2
+                            alufn = b011100 //"B"
+                            bsel = b01
+                            regfile_we = b1
+                            regfile_wa = d10 // temp 2
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_OTHERS
+                        }
+                    else if (p2r_button){ // attack with right
+                            
+                            // store 1 to temp 2
+                            alufn = b011100 //"B"
+                            bsel = b10
+                            regfile_we = b1
+                            regfile_wa = d10 // temp 2
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_OTHERS 
+                        }                  
+                    }
+                    
+                else { // player 1 turn
+                    if (p1l_button){ // attack with left
+                            
+                            // store 0 to temp 2
+                            alufn = b011100 //"B"
+                            bsel = b01 // 0
+                            regfile_we = b1
+                            regfile_wa = d10 // temp 2
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_OTHERS 
+                        }
+                    else if (p1r_button){ // attack with right
+                            
+                            // store 1 to temp 2
+                            alufn = b011100 //"B"
+                            bsel = b10 // 1
+                            regfile_we = b1
+                            regfile_wa = d10 // temp 2
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_OTHERS
+                        }
+                    }
+                    
+                
+                
+                MainStates.MAIN_CALCULATE_ATTACK_OTHERS: // may cause erronous output if main clock now slow enoguh
+                    // links to fsm that was in opp_attack module
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_ATTACKINGHAND
+                
+                // start of OPP_ATTACK PORTION OF FSM
+                MainStates.ATKOPP_BRANCH_ATTACKINGHAND:
+                regfile_ra2 = d10 // ATKOPP_BRANCH temp2
+                if(regfile_rd2[0]){ // attacking with right hand
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OWN_RA
+                    }
+                else{ // attacking with left hand
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OWN_LA
+                    }
+                
+                MainStates.ATKOPP_BRANCH_OWN_LA: // check if hand attacking with exists
+                regfile_ra2 = ownlaaddr.q 
+                if(regfile_rd2[0]){ // hand attacking with exists
+                        game_fsm.d = MainStates.ATKOPP_STORE_OWN_LS
+                    }
+                else{ // hand attacking with does not exist
+                        game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+                
+                MainStates.ATKOPP_STORE_OWN_LS:
+                    // control signals update temp2 to store Reg[ownlsaddr.q]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = ownlsaddr.q 
+                    regfile_we = b1
+                    regfile_wa = d10 // temp 2
+                    wdsel = b00
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_ATTACKEDHAND
+                
+                MainStates.ATKOPP_BRANCH_OWN_RA: // check if hand attacking with exists
+                regfile_ra2 = ownraaddr.q
+                if(regfile_rd2[0]){ // hand attacking with exists
+                        game_fsm.d = MainStates.ATKOPP_STORE_OWN_RS
+                    }
+                else{ // hand attacking with does not exist
+                        game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+                
+                MainStates.ATKOPP_STORE_OWN_RS:
+                    // control signals to update temp2 to store Reg[ownrsaddr.q]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = ownrsaddr.q 
+                    regfile_we = b1
+                    regfile_wa = d10 // temp 2
+                    wdsel = b00
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_ATTACKEDHAND
+                
+                MainStates.ATKOPP_BRANCH_ATTACKEDHAND:
+                regfile_ra2 = d9 // ATKOPP_BRANCH temp1
+                if(regfile_rd2[0]){ // right hand attacked
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OPP_RA
+                    }
+                else{ // left hand attacked
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OPP_LA
+                    } 
+                MainStates.ATKOPP_BRANCH_OPP_LA: // check if hand to attack exists
+                regfile_ra2 = opplaaddr.q
+                if(regfile_rd2[0]){ // hand to attack exists
+                    game_fsm.d = MainStates.ATKOPP_ADD_OPP_LS
+                    }
+                else{ // hand to attack does not exist
+                    game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+                
+                MainStates.ATKOPP_ADD_OPP_LS:
+                    // add signals for Add Reg[opplsaddr.q] to Temp2
+                    // calculate total fingers of attacked & attacking hand
+                    alufn = b000000 // "ADD"
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = d10 // temp 2
+                    regfile_ra1 = d10 // temp 2
+                    regfile_ra2 = opplsaddr.q // opp left hand
+                    debug = b0001
+                    game_fsm.d = MainStates.ATKOPP_CHECK_TOTAL
+                
+                    
+                MainStates.ATKOPP_BRANCH_OPP_RA: // check if hand to attack exists
+                regfile_ra2 = oppraaddr.q
+                if(regfile_rd2[0]){ // hand to attack exists
+                    game_fsm.d = MainStates.ATKOPP_ADD_OPP_RS
+                    }
+                else{ // hand to attack does not exist
+                    game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+                
+                MainStates.ATKOPP_ADD_OPP_RS:
+                    // signals for Add Reg[opprsaddr.q] to Temp2
+                    // calculate total fingers of attacked & attacking hand
+                    alufn = b000000 // "ADD"
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = d10 // temp 2
+                    regfile_ra1 = d10 // temp 2
+                    regfile_ra2 = opprsaddr.q // opp right hand
+                    debug = b0001
+                    game_fsm.d = MainStates.ATKOPP_CHECK_TOTAL
+                
+                MainStates.ATKOPP_CHECK_TOTAL:
+                    // signals for 5 <= Temp2 store to Temp3
+                    alufn = b110111 // CMPLE
+                    regfile_ra2 = d10 // temp 2
+                    asel = b10 // provides a value of 5
+                    bsel = b00 
+                    wdsel = 0
+                    regfile_wa = d11 // write to temp 3
+                if(slow_clock_edge.out){ // add delay to ensure CMPLE signals propagate
+                    regfile_we = 1
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_TOTAL
+                    }
+                //if(regfile_rd2 >= 5){ // store 1 if >= 5
+                //   alufn = b011100 //"B"
+                //    bsel = b10 // 1
+                //    wdsel = 0
+                //    regfile_wa = d11 // temp 3
+                //    regfile_we = d1
+                //    }
+                //else { // store 0 if < 5
+                //    alufn = b011100 //"B"
+                //    bsel = b01 // 0
+                //    wdsel = 0
+                //    regfile_wa = d11 // temp 3
+                //   regfile_we = d1
+                //   }                
+                    
+                MainStates.ATKOPP_BRANCH_TOTAL:
+                regfile_ra2 = d11
+                if(regfile_rd2[0]){ // >=5 fingers, kill hand
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_ATTACKEDHAND3
+                    }
+                else{ // does not kill hand
+                    game_fsm.d = MainStates.ATKOPP_BRANCH_ATTACKEDHAND2
+                    }    
+                
+                MainStates.ATKOPP_BRANCH_ATTACKEDHAND2:
+                regfile_ra2 = d9 // ATKOPP_BRANCH temp1
+                if(regfile_rd2[0]){ // attacked right hand
+                        game_fsm.d = MainStates.ATKOPP_UPDATE_OPPRS
+                    }
+                else{ // attacked left hand
+                        game_fsm.d = MainStates.ATKOPP_UPDATE_OPPLS
+                    }    
+                
+                MainStates.ATKOPP_UPDATE_OPPLS:
+                    // ATKOPP_UPDATE Reg[opplsaddr.q] to store temp2
+                    // update no. fingers attacked hand has
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = opplsaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                             
+                MainStates.ATKOPP_UPDATE_OPPRS:
+                    // ATKOPP_UPDATE Reg[opprsaddr.q] to store temp2
+                    // update no. fingers attacked hand has
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = d10 // temp 2
+                    regfile_we = b1
+                    regfile_wa = opprsaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                
+                MainStates.ATKOPP_BRANCH_ATTACKEDHAND3:
+                regfile_ra2 = d9 // branch attacked hand - temp1
+                if(regfile_rd2[0]){ // right hand attacked, check if left still exists
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OPP_LA2
+                    }
+                else{ // left hand attacked, check if right still exists
+                        game_fsm.d = MainStates.ATKOPP_BRANCH_OPP_RA2
+                    }
+                
+                MainStates.ATKOPP_BRANCH_OPP_LA2: 
+                regfile_ra2 = opplaaddr.q
+                if(regfile_rd2[0]){ // opp's other hand still exists
+                    game_fsm.d = MainStates.ATKOPP_UPDATE_OPP_RA
+                    }
+                else{ // opp has no hands left
+                    game_fsm.d = MainStates.MAIN_CURR_WIN
+                    }
+                
+                MainStates.ATKOPP_UPDATE_OPP_RA:
+                    // ATKOPP_UPDATE Reg[oppraaddr.q] to be 0
+                    // update hand availability - no longer exists
+                    alufn = b011100 //"B"
+                    bsel = b01 // 0
+                    regfile_we = b1
+                    regfile_wa = oppraaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.ATKOPP_UPDATE_OPP_RS
+                
+                MainStates.ATKOPP_UPDATE_OPP_RS:
+                    // signals to ATKOPP_UPDATE Reg[opprsaddr.q] to 0
+                    // update no. fingers attacked hand has to 0
+                    alufn = b011100 //"B"
+                    bsel = b01 // 0
+                    regfile_we = b1 
+                    regfile_wa = opprsaddr.q 
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                
+                MainStates.ATKOPP_BRANCH_OPP_RA2: 
+                regfile_ra2 = oppraaddr.q
+                if(regfile_rd2[0]){ // opp's other hand still exists
+                    game_fsm.d = MainStates.ATKOPP_UPDATE_OPP_LA 
+                    }
+                else{ // opp has no hands left
+                    game_fsm.d = MainStates.MAIN_CURR_WIN
+                    }
+                
+                MainStates.ATKOPP_UPDATE_OPP_LA:
+                    // ATKOPP_UPDATE Reg[opplaaddr.q] to be 0
+                    // update hand availability - no longer exists
+                    alufn = b011100 //"B"
+                    bsel = b01 // 0
+                    regfile_we = b1
+                    regfile_wa = opplaaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.ATKOPP_UPDATE_OPP_LS
+                
+                MainStates.ATKOPP_UPDATE_OPP_LS:
+                    // ATKOPP_UPDATE Reg[opplsaddr.q] 
+                    // update no. fingers attacked hand has to 0
+                    alufn = b011100 //"B"
+                    bsel = b01 // 0
+                    regfile_we = b1
+                    regfile_wa = opplsaddr.q 
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                
+                // END OF ATTACK OPP FSM PORTION
+                    
+                // input after selecting attack own hand
+                MainStates.MAIN_SELECT_TO_HIT: // attack self - use separate module to determine branch + update temp1 if needed
+                regfile_ra2 = d13
+                if(regfile_rd2[0]){ // player 2 turn
+                    if (p2l_button){ // attack self left
+                            
+                            // store 0 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b01 // 0
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_SELF 
+                        }
+                    else if (p2r_button){ // attack self right
+                            
+                            // store 1 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b10 // 1
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_SELF  
+                        }                  
+                    }
+                    
+                else { // player 1 turn
+                    if (p1l_button){ // // attack self left
+                            
+                            // store 0 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b01 // 0
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_SELF  
+                        }
+                    else if (p1r_button){ // attack self right
+                            
+                            // store 1 to temp 1
+                            alufn = b011100 //"B"
+                            bsel = b10 // 1
+                            regfile_we = b1
+                            regfile_wa = d9 // temp 1
+                            wdsel = b00
+                            
+                            game_fsm.d = MainStates.MAIN_CALCULATE_ATTACK_SELF  
+                        }
+                    }
+                
+                MainStates.MAIN_CALCULATE_ATTACK_SELF: // bridging state to attack self fsm portion
+                // use seperate module to check validity of attack self + update hand values
+                    game_fsm.d = MainStates.SELFATK_BRANCH_OWN_LA
+                
+                // START OF ATTACK SELF FSM PORTION
+                MainStates.SELFATK_BRANCH_OWN_LA:
+                    // checking whether own left hand is alive 
+                regfile_ra2 = ownlaaddr.q 
+                if(regfile_rd2[0]){
+                        game_fsm.d = MainStates.SELFATK_BRANCH_OWN_RA
+                    }
+                else{
+                        game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+
+                
+                MainStates.SELFATK_BRANCH_OWN_RA:
+                    // checking whether own right hand is alive
+                regfile_ra2 = ownraaddr.q
+                if(regfile_rd2[0]){
+                        game_fsm.d = MainStates.SELFATK_BRANCH_ATTACKEDHAND
+                    }
+                else{
+                        game_fsm.d = MainStates.MAIN_ILLEGAL
+                    }
+                
+                
+                MainStates.SELFATK_BRANCH_ATTACKEDHAND:
+                    // checking whether we attacking our own left or right hand
+                regfile_ra2 = d9 // SELFATK_BRANCH based on temp1
+                if(regfile_rd2[0]){
+                // if temp 1 has a score of 1, we attack our right hand with our left hand
+                        game_fsm.d = MainStates.SELFATK_ATKRA
+                    }
+                else{ // attack left hand
+                        game_fsm.d = MainStates.SELFATK_ATKLA
+                    }
+                
+                
+                MainStates.SELFATK_ATKRA:
+                    // adding left hand score to right hand score 
+                    alufn = b000000 // ADD
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = ownrsaddr.q
+                    regfile_ra1 = ownrsaddr.q // shld be attacked hand
+                    regfile_ra2 = ownlsaddr.q // should be attacking hand
+                    debug = b0001
+                    game_fsm.d = MainStates.SELFATK_CHECK_RA
+                
+                MainStates.SELFATK_ATKLA:
+                    // adding left hand score to right hand score 
+                    alufn = b000000 // ADD
+                    asel = b00
+                    bsel = b00
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = ownlsaddr.q
+                    regfile_ra1 = ownlsaddr.q // shld be attacked hand
+                    regfile_ra2 = ownrsaddr.q // should be attacking hand
+                    debug = b0001
+                    game_fsm.d = MainStates.SELFATK_CHECK_LA
+                
+                MainStates.SELFATK_CHECK_RA:
+                    // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                    alufn = b110111 // CMPLE, 
+                    asel = b10 // provides a value of 5
+                    bsel = b00 
+                    wdsel = 0
+                    regfile_ra2 = ownrsaddr.q // should be result of attacked hand  
+                    regfile_wa = d9 // write to temp 1
+                    debug = b0011
+                    if(slow_clock_edge.out){ // add delay to allow cmple signals to propagate
+                        regfile_we = 1
+                        game_fsm.d = MainStates.SELFATK_BRANCH_CHECK_RS
+                        }
+            
+                
+                MainStates.SELFATK_CHECK_LA:
+                    // checking 5 <= hand value, returns 1 when hand >=5 (dead)
+                        alufn = b110111 // CMPLE, 
+                        asel = b10 // provides a value of 5
+                        bsel = b00 
+                        wdsel = 0
+                        regfile_wa = d9 // write to temp 1
+                        //regfile_ra1 = not needed
+                        regfile_ra2 = ownlsaddr.q // should be result of attacked hand  
+                        debug = b0011
+                    if(slow_clock_edge.out){ // add delay to allow smple signals to propagate
+                        regfile_we = 1
+                    game_fsm.d = MainStates.SELFATK_BRANCH_CHECK_LS
+                    }
+
+                
+                MainStates.SELFATK_BRANCH_CHECK_RS:
+                regfile_ra2 = d9 // SELFATK_BRANCH based on temp1
+                if(regfile_rd2[0]){
+                    // if temp 1 has a score of 1, hand is dead
+                    alufn = b011100 //  "B"
+                    //asel =  not needed
+                    bsel = b01 // provides a value of 0 at the bsel
+                    wdsel = 0
+                    regfile_we = 1
+                    regfile_wa = ownrsaddr.q // write to RIGHT score
+                    //regfile_ra1 = not needed
+                    //regfile_ra2 = not needed  
+                    debug = b0001
+                    game_fsm.d = MainStates.SELFATK_UPDATE_RA
+                    }
+                else{
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                    }
+                
+                
+                MainStates.SELFATK_BRANCH_CHECK_LS:
+                regfile_ra2 = d9 // SELFATK_BRANCH based on temp1
+                if(regfile_rd2[0]){
+                // if temp 1 has a score of 1, hand is dead
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = ownlsaddr.q // write to LEFT score
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = MainStates.SELFATK_UPDATE_LA
+                    }
+                else{
+                        game_fsm.d = MainStates.MAIN_CONTINUE
+                    }
+                
+                
+                MainStates.SELFATK_UPDATE_RA:
+                    // own R avail to 0, goes to next state
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = ownraaddr.q // write to right avail
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = MainStates.MAIN_CONTINUE
+                
+                
+                MainStates.SELFATK_UPDATE_LA:
+                    // own L  avail to 0, goes to next state
+                        alufn = b011100 //  "B"
+                        //asel =  not needed
+                        bsel = b01 // provides a value of 0 at the bsel
+                        wdsel = 0
+                        regfile_we = 1
+                        regfile_wa = ownlaaddr.q // write to LEFT avail
+                        //regfile_ra1 = not needed
+                        //regfile_ra2 = not needed  
+                        debug = b0001
+                        game_fsm.d = MainStates.MAIN_CONTINUE
+                
+                // END OF SELF ATTACK FSM PORTION
+
+                
+                // BRIDING STATE to split portion of FSM (since no further input needed)
+                MainStates.MAIN_SPLIT: 
+                    game_fsm.d = MainStates.SPLIT_XOR_AVAIL
+
+                
+                // START OF SPLIT FSM PORTION
+                MainStates.SPLIT_XOR_AVAIL: // check if no. remaining hands == 1
+                    alufn = b010110 //"XOR" 
+                    asel = b00
+                    bsel = b00
+                    regfile_ra1 = ownlaaddr.q // own left hand availability
+                    regfile_ra2 = ownraaddr.q // own right hand availability
+                    regfile_we = b1
+                    regfile_wa = d9 // temp 1
+                    wdsel = b00 
+                    game_fsm.d = MainStates.SPLIT_BRANCH_AVAIL
+                
+                MainStates.SPLIT_BRANCH_AVAIL:
+                    regfile_ra2 = d9
+                    if(regfile_rd2[0]){ // 1 hand left
+                        game_fsm.d = MainStates.SPLIT_BRANCH_OWNLA
+                        }
+                    else{ // 2 hands left
+                        game_fsm.d = MainStates.MAIN_ILLEGAL   
+                        }
+                    
+                MainStates.SPLIT_BRANCH_OWNLA:
+                    regfile_ra2 = ownlaaddr.q
+                    if(regfile_rd2[0]){ // left hand left
+                        game_fsm.d = MainStates.SPLIT_CHECK_OWNLS
+                        }
+                    else{ // right hand left
+                        game_fsm.d = MainStates.SPLIT_CHECK_OWNRS   
+                        }
+                
+                
+                MainStates.SPLIT_CHECK_OWNRS: // check no. fingers in right
+                    alufn = b110011 //CMPEQ
+                    asel = b00
+                    bsel = b10 // 1
+                    wdsel = 0
+                    regfile_wa = d10 // temp 2
+                    regfile_ra1 = ownrsaddr.q
+                    if(slow_clock_edge.out){
+                        regfile_we = 1
+                        game_fsm.d = MainStates.SPLIT_BRANCH_OWNRS
+                    }
+
+                    
+                
+                MainStates.SPLIT_BRANCH_OWNRS:
+                    regfile_ra2 = d10 // temp 2
+                    if(regfile_rd2[0]){ // left 1 finger on right
+                        game_fsm.d = MainStates.MAIN_ILLEGAL
+                        }
+                    else{ // left more than 1 finger on right
+                        game_fsm.d = MainStates.SPLIT_DIV_OWNRS   
+                        }
+                    
+                MainStates.SPLIT_DIV_OWNRS:
+                    // signals to DIV Reg[ownrsaddr.q] by 2
+                    alufn = b000011 //"DIV"
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_wa = ownrsaddr.q // update right score with the divided value
+                    regfile_we = d1
+                    regfile_ra1 = ownrsaddr.q // takes the right score to divide
+                    game_fsm.d = MainStates.SPLIT_UPDATE_OWNLS    
+                    
+                MainStates.SPLIT_UPDATE_OWNLS: // update left to be same as right
+                    // update Reg[ownlsaddr.q] to be same as Reg[ownrsaddr.q]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = ownrsaddr.q 
+                    regfile_we = b1
+                    regfile_wa = ownlsaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.SPLIT_UPDATE_OWNLA 
+                    
+                MainStates.SPLIT_UPDATE_OWNLA: // hand has been revived
+                    // UPDATE Reg[ownlaaddr.q] to be 1    
+                    alufn = b011100 //"B"
+                    bsel = b10 // 1
+                    regfile_we = b1
+                    regfile_wa = ownlaaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_CONTINUE 
+                    
+                MainStates.SPLIT_CHECK_OWNLS: // check no. fingers in left
+                    alufn = b110011 //CMPEQ
+                    asel = b00
+                    bsel = b10 // 1
+                    wdsel = 0
+                    regfile_wa = d10 // temp 2
+                    regfile_we = b1  
+                    regfile_ra1 = ownlsaddr.q
+                    game_fsm.d = MainStates.SPLIT_BRANCH_OWNLS
+                
+                MainStates.SPLIT_BRANCH_OWNLS:
+                    regfile_ra2 = d10 // temp 2
+                    if(regfile_rd2[0]){ // 1 finger left
+                        game_fsm.d = MainStates.MAIN_ILLEGAL 
+                        }
+                    else{ // more than 1 finger
+                        game_fsm.d = MainStates.SPLIT_DIV_OWNLS   
+                        }
+                    
+                MainStates.SPLIT_DIV_OWNLS:
+                    // signals to DIV Reg[ownlsaddr.q] by 2
+                    alufn = b000011 //"DIV"
+                    asel = b00
+                    bsel = b11
+                    wdsel = b00
+                    regfile_ra1 = ownlsaddr.q // takes the left score to divide
+                    regfile_wa = ownlsaddr.q // update left score with the divided value
+                    regfile_we = 1
+                    game_fsm.d = MainStates.SPLIT_UPDATE_OWNRS   
+                    
+                MainStates.SPLIT_UPDATE_OWNRS: // assign right to have same no. hands as left
+                    // update Reg[ownrsaddr.q] to be same as Reg[ownlsaddr.q]
+                    alufn = b011010 //"A"
+                    asel = b00
+                    regfile_ra1 = ownlsaddr.q 
+                    regfile_we = b1
+                    regfile_wa = ownrsaddr.q
+                    wdsel = b00
+                    game_fsm.d = MainStates.SPLIT_UPDATE_OWNRA 
+                    
+                MainStates.SPLIT_UPDATE_OWNRA: // revive right
+                    // UPDATE Reg[ownraaddr.q] to be 1
+                    alufn = b011100 //"B"
+                    bsel = b10 // 1
+                    regfile_we = b1
+                    regfile_wa = ownraaddr.q
+                    wdsel = b00 
+                    game_fsm.d = MainStates.MAIN_CONTINUE
+                    // END OF SPLIT FSM PORTION
+                 
+                MainStates.MAIN_CONTINUE: 
+                    // bridge to next round: swap curr_player
+                    
+                    game_fsm.d = MainStates.MAIN_TURN_SELECT
+                
+                MainStates.MAIN_TURN_SELECT:
+                    // swap currentplayer - go to next person turn
+                    alufn = b010110 //"XOR" 
+                    asel = b00
+                    bsel = b10 // 1
+                    regfile_ra1 = d13
+                    regfile_we = b1
+                    regfile_wa = d13
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_UPDATE_ADDR
+                
+                MainStates.MAIN_UPDATE_ADDR:
+                    // update addresses 
+                    
+                    regfile_ra2 = d13 // get current player from regfile
+                    
+                    player_turn.d = regfile_rd2[0]
+                    curr_turn_addr.current_player = regfile_rd2[0]
+                    ownlsaddr.d = curr_turn_addr.ownlsaddr
+                    ownrsaddr.d = curr_turn_addr.ownrsaddr
+                    ownlaaddr.d = curr_turn_addr.ownlaaddr
+                    ownraaddr.d = curr_turn_addr.ownraaddr
+                    opplsaddr.d = curr_turn_addr.opplsaddr
+                    opprsaddr.d = curr_turn_addr.opprsaddr
+                    opplaaddr.d = curr_turn_addr.opplaaddr
+                    oppraaddr.d = curr_turn_addr.oppraaddr
+                    pulse_sig.d = 1
+                    
+                    game_fsm.d = MainStates.MAIN_OPTION_SELECT // to next turn!
+                
+                
+                MainStates.MAIN_ILLEGAL: // indicate illegal move done - was planning to add indication which is why this is here
+                    // change illegal to 1
+                    alufn = b011100 //"B"
+                    bsel = b10 // 1
+                    regfile_we = b1
+                    regfile_wa = d12 // illegal
+                    wdsel = b00
+                    game_fsm.d = MainStates.MAIN_OPP_WIN
+                
+                
+                
+                // END STATES
+                
+                // curr player win lights
+                MainStates.MAIN_CURR_WIN: // current player win by killing all of opp's hands
+                    // bridging state to end game portion of FSM
+                    game_fsm.d = MainStates.END_ON_CURRL 
+                
+                MainStates.END_ON_CURRL: // turn on entire curr player L hand
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = ownlsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_CURRR
+                
+                MainStates.END_ON_CURRR: // turn on entire curr player R hand
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = ownrsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_CURRAL
+                
+                MainStates.END_ON_CURRAL: // turn on entire curr player L hand avail
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = ownlaaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_CURRAR
+                
+                MainStates.END_ON_CURRAR: // turn on entire curr player R hand avail
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = ownraaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_OPPL
+                
+                MainStates.END_OFF_OPPL: // turn off entire opp player L hand
+                    wdsel = 2 // off all lights (0)
+                    regfile_wa = opplsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_OPPR
+                
+                MainStates.END_OFF_OPPR: // turn off entire opp player R hand
+                    wdsel = 2 // off all lights (0)
+                    regfile_wa = opprsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_OPPAL
+                
+                MainStates.END_OFF_OPPAL: // turn off entire opp player L hand avail
+                    wdsel = 2 // off all lights (0)
+                    regfile_wa = opplaaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_OPPAR
+                
+                MainStates.END_OFF_OPPAR: // turn off entire opp player R hand avail
+                    wdsel = 2 // off all lights (0)
+                    regfile_wa = oppraaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.MAIN_GAME_END
+                
+                // opp player win lights
+                MainStates.MAIN_OPP_WIN: // opp player win by curr player's illegal input
+                    // bridging state to end game portion of FSM
+                    game_fsm.d = MainStates.END_OFF_CURRL
+                
+                MainStates.END_OFF_CURRL: // turn off entire curr player L hand
+                    wdsel = 2 // on all lights (max)
+                    regfile_wa = ownlsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_CURRR
+                
+                MainStates.END_OFF_CURRR: // turn off entire curr player R hand
+                    wdsel = 2 // on all lights (max)
+                    regfile_wa = ownrsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_CURRAL
+                
+                MainStates.END_OFF_CURRAL: // turn off entire curr player L hand avail
+                    wdsel = 2 // on all lights (max)
+                    regfile_wa = ownlaaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_OFF_CURRAR
+                
+                MainStates.END_OFF_CURRAR: // turn off entire curr player R hand avail
+                    wdsel = 2 // on all lights (max)
+                    regfile_wa = ownraaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_OPPL
+                
+                MainStates.END_ON_OPPL: // turn on entire opp player L hand
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = opplsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_OPPR
+                
+                MainStates.END_ON_OPPR: // turn on entire opp player R hand
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = opprsaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_OPPAL
+                
+                MainStates.END_ON_OPPAL: // turn on entire opp player L hand avail
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = opplaaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.END_ON_OPPAR
+                
+                MainStates.END_ON_OPPAR: // turn on entire opp player R hand avail
+                    wdsel = 1 // on all lights (max)
+                    regfile_wa = oppraaddr.q
+                    regfile_we = 1
+                    game_fsm.d = MainStates.MAIN_GAME_END
+                                              
+                MainStates.MAIN_GAME_END:
+                    game_fsm.d = MainStates.MAIN_GAME_END // game as ended
+            
+        }
+        
+    }
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
